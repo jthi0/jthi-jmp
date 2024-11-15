@@ -1,0 +1,67 @@
+Names Default To Here(1);
+f1 = Function({dtab},
+	dtname = (dtab << getname());
+	Print("opening");
+	Print(dtname);
+);
+f2 = Function({dtab},
+	dtname = (dtab << getname());
+	Print("closing");
+	Print(dtname);
+);
+aSub = Subscribe to Data Table List(, OnOpen(f1));
+Subscribe to Data Table List(aSub, OnClose(f2));
+dt = Open("$SAMPLE_DATA/Big Class Families.jmp",private);
+
+dt = Open("$SAMPLE_DATA/Big Class Families.jmp",private);
+dt1 = dt << subset(All Rows, Selected Columns(0));
+
+a = dt << Checksum(Exclude({"TableVariables", "TableScripts"}));
+b = dt1 << Checksum(Exclude({"TableVariables", "TableScripts"}));
+
+
+Get Data Table List()
+N Table()
+
+
+Window("Summary") << show properties
+
+dt = Window("Summary")["Preview",TabPageBox(1),DataBrowserBox(1)] << get data table;
+
+dt << get script
+
+dt << Bring Window To Front
+Column(dt, 1) << get script
+dt << Get Edit Lock;
+dt << Get Lock;
+dt << Get On Close
+show properties(dt)
+
+dt = Open("$SAMPLE_DATA/Big Class Families.jmp");
+dt << Lock Data Table(1);
+dt << Set Edit Lock("Modify Cells", "Add Rows", "Add Columns", "Delete Rows", "Delete Columns");
+
+
+
+
+Data Table("~Summary of Big Class grouped by age~") << New Data View
+
+
+
+lb = Window("Summary")["Preview",TabPageBox(1),ListBox(1)];
+(lb << child) << get script
+
+
+dt = Open("$SAMPLE_DATA/Big Class.jmp", private);
+nw = New Window("School", 
+	H List Box(
+		Mouse Box(
+			dg = dt << New Data Box()
+			, << SetClickEnable(1)
+			, << Set Click(
+				function({this, clickpt, event},
+					return()
+				)
+			)
+		)
+));

@@ -1,0 +1,132 @@
+﻿Names Default To Here(1);
+
+cur_report = Current Report();
+If(!IsEmpty(cur_report),
+	cur_xml = cur_report << get xml;
+	If(!Contains(Get Window list() << Get Window Title, "View XML"),
+		sb = Script Box(cur_xml, "XML");
+		sb << show line numbers(1);
+		nw = New Window("View XML",  /*<<Language("XML"), */ << Size(1600, 1000),
+			V List Box(align("center"),
+				window:selection = Text Box("", << Font Color("Red")),
+				Panel Box("XML for '" || (cur_report << get window title) ||"'",
+					sb
+				)
+			)
+		);
+		nw << Set Dirty(0);
+	,
+		nw = Window("View XML");
+	);
+	nw << Bring Window To Front;
+);
+
+
+// not really that good, as we cannot select the lin
+sb = nw[Script Box(1)];
+If(!IsEmpty(sb),
+	sel_line = 0;
+	For Each({line, idx}, sb << Get Lines,
+		If(Contains(line, "selected=\!"true\!""),
+			sel_line = idx;
+			break();
+		);
+	);
+
+	If(sel_line,
+		is_dirty = sb << Is Dirty();
+		sb << Set Line text(sel_line, sb << get line text(sel_line));
+		sb << Set Dirty(is_dirty); // reset dirty status
+		nw:selection << Set Text("\[First 'selected = "true"' found from line: ]\" || Char(sel_line));
+	);
+);
+
+
+
+cur_xml =
+
+Pat Match(
+	cur_xml, // source
+	Pat Regex( "\[<c\s+r="A1"\s*s="67"\s*t="s">\s*<v>]\" ) >> prefix + // what comes before goes in prefix
+	Pat Regex( "[^<]*" ) >> old + // the middle part we care about, probably some digits
+	Pat Regex( "\[</v>\s*</c>]\" ) >> suffix, // what comes after goes in suffix
+	prefix || "42" || suffix // replace the matched section with this
+);
+show(old)
+
+
+// should be FAIRLY simple to build with tree nodes
+	// if open tag -> new node
+	// if has close tag -> prev parent
+	// childs?
+	
+xml = "\[<HeadBox leftOffset="0" topOffset="6" width="464" height="755">
+  <ListBox width="461" height="752">
+    <OutlineBox width="461" height="752" helpKey="Distrib" isOpen="true">Distributions<WrapListBox leftOffset="14" topOffset="29" width="447" height="724">
+        <DropBox width="5" height="90">
+          <SpacerBox width="5" height="90"/>
+        </DropBox>
+        </OutlineBox>
+        <DropBox leftOffset="442" topOffset="0" width="5" height="90">
+          <SpacerBox width="5" height="90"/>
+        </DropBox>
+      </WrapListBox>
+    </OutlineBox>
+  </ListBox>
+</HeadBox>]\";
+
+rep = Current Report();
+
+tag_pattern = "(<\w+ |</\w+|/>)";
+
+cur_tag = Regex Match(xml, tag_pattern, "¤");
+root = Tree Node(cur_tag[1]);
+root << Set Data(1);
+cur_parent = root;
+
+For Each({xml_line, cur_line}, Words(xml, "\!N"),
+	While(N Items(cur_tag = Regex Match(xml_line, tag_pattern, "¤")) > 0,
+		node = Tree Node(cur_tag[1]);
+		node << Set Data(cur_line);
+		If(Contains(cur_tag[1], "/>") | Contains(cur_tag[1], "</"),
+			new_parent = cur_parent << parent;
+			If(Type(new_parent) != "Scriptable",
+				cur_tag[1]
+			,
+				cur_parent = cur_parent << parent;
+			);
+		,
+			cur_parent << Append(node);
+			cur_parent = node;
+		);
+	);
+);
+new window("", tb = Tree box(root));
+
+tree << expand(root1);
+
+set icon
+set expanded icon
+
+set tip
+set dimmed
+
+// jos selected -> set icon?
+// double click -> go to line
+// right click -> build XPath Query
+// right click -> build report path (<< Get Display Path())
+// << child;
+// << parent;
+
+Get Window List() << Get Window Title;
+XPath Query(xml, "//HeadBox")
+
+<< Get Display Path();
+Words(xml, "<");
+Write(Concat Items(Words(xml, "<"), "\!n<"));
+Write(Regex(Substitute(xml, "\!N", "\!r"), "\s*<", "\!N<", GLOBALREPLACE));
+
+tree = Tree box();
+tn = Tree Node("Parent1");
+c4 << Parent
+c1 = Tree Node("Child 1");

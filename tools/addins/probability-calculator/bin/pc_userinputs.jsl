@@ -1,0 +1,47 @@
+Names Default To Here(1);
+
+get_user_inputs = function({dt}, {Default Local},
+	nw = New Window("Select Columns", << Modal, << Return result,
+		Tab Box(
+			Tab Page Box("Select Columns",
+				fcs = Filter Col Selector(Data Table(dt),
+					<< Character(0), << Nominal(0), << Ordinal(0),
+					<< Expression(0)
+				),
+				<< Set Base Font("Title")
+			),
+			Tab Page Box("Cast Columns",
+				Lineup Box(N Col(2),
+					Button Box("Add", << Set Function(function({this},
+						clb << Append((fcs << get selected))
+					))),
+					clb = Col List Box(Datatable(dt), << Set Data Type("Numeric"))
+				),
+				<< Set Base Font("Title")
+			),
+			Tab Page Box("Actions",
+				Lineup Box(N Col(1),
+					Button Box("OK",
+						col_of_interest = clb << get items;
+						If(N Items(col_of_interest) < 1,
+							mini_modal_window("Error", "No columns selected", "WinInformation", "Warning");
+						);
+					),
+					Button Box("Cancel"),
+					Spacer Box(Size(0, 20)),
+					Button Box("Remove",
+						clb << Remove Selected
+					)
+				),
+				<< Set Base Font("Title")
+			), << Set Style("Horizontal Spread")
+		)
+	);
+
+	If(nw["Button"] != 1,
+		return(.);
+	);
+
+	return(col_of_interest);
+);
+

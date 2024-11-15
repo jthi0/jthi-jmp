@@ -1,0 +1,14 @@
+{
+	"order_within_selection": 1, 
+	"no_selection_behaviour": "JMP",
+	"save_original_order_as_table_script": 1
+	
+	
+	use_clipboard = 0;
+
+	tb_width = 200;
+	tb_nlines = 20;
+	match_case = 1;
+	match_entire_cell = 1;
+	
+}

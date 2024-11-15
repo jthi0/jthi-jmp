@@ -1,0 +1,96 @@
+Names Default To Here(1);
+
+desc_statistics_dino = function({m}, {Default Local},
+	// mean x/y, variance x/y, correlation, linear regression line, R^2
+	aa_statistics = Associative Array();
+	
+	aa_statistics["mean_x"] = Mean(m[0,1]);
+	aa_statistics["mean_y"] = Mean(m[0,2]);
+	aa_statistics["sd_x"] = StdDev(m[0,1]);
+	aa_statistics["sd_y"] = StdDev(m[0,2]);
+
+	{Estimates, Std_Error, Diagnostics} = Linear Regression(m[0,1], m[0,2]);
+	aa_statistics["RegIntercept"] = Estimates[1];
+	aa_statistics["Regbeta"] = Estimates[2];
+	aa_statistics["RegrLineStr"] = Char(Estimates[1], , 0) || " + " || Char(Estimates[2], , 1) || "x";// we will round these
+	aa_statistics["RSquare"] = Diagnostics["RSquare"];
+	aa_statistics["Correlation"] = Correlation(m)[2];
+	
+	return(aa_statistics);
+);
+
+create_statistics_table_dino = function({aa}, {Default Local},
+	tb = Table Box(
+		String Col Box("Statistic", {"Mean X", "Mean Y", "StdDev X", "StdDev Y", "Correlation", "Regr Line", "R^2"}),
+		scb = String Col Box("Value", {});
+	);
+	scb << Add Element(Char(aa["mean_x"],,2));
+	scb << Add Element(Char(aa["mean_y"],,2));
+	scb << Add Element(Char(aa["sd_x"],,3));
+	scb << Add Element(Char(aa["sd_y"],,3));
+	scb << Add Element(Char(aa["Correlation"],,3));
+	scb << Add Element(Char(aa["RegrLineStr"]));
+	scb << Add Element(Char(aa["RSquare"],2));
+	
+	return(tb);
+);
+
+create_gb_dino = function({dt, aa_all, dataset}, {Default Local},
+	aa = aa_all[dataset];
+	Eval(EvalExpr(gb = V List Box(Expr(dt) << Graph Builder(
+		Size(300, 250),
+		Show Control Panel(0),
+		Show Legend(0),
+		Show Title(0),
+		Variables(X(:x), Y(:y), Group X(:dataset)),
+		Elements(Points(X, Y, Legend(3))),
+		Where(:dataset == Expr(dataset)),
+		SendToReport(
+			Dispatch({}, "X", ScaleBox, {Min(0), Max(105), Inc(5), Minor Ticks(0)}),
+			Dispatch({}, "Y", ScaleBox, {Min(0), Max(105), Inc(5), Minor Ticks(0)}),
+			Dispatch({}, "400", ScaleBox, {Legend Model(3, Properties(0, {Line Color(6), Transparency(0)}, Item ID("Y", 1)))}),
+			Dispatch({}, "Graph Builder", FrameBox, {
+				Marker Size(6), Marker Drawing Mode("Normal"),
+				Add Graphics Script(
+					Pen Color("blue");
+					Pen Size(2);
+					Y Function(Expr(aa["RegIntercept"]) + Expr(aa["Regbeta"]) * x, x); // we CAN'T hardcode this here
+				)
+			})
+		)
+	))));
+	(gb << XPath("//TextBox[contains(text(), 'Where(:')]")) << Visibility("Collapse");
+	return(gb);
+);
+
+create_datasaurusdozen_lub = function({dt_datasaurusdozen, aa_datasaurusdozen, dataset}, {Default Local},
+	lub = Lineup Box(N Col(2));
+	lub << Append(create_gb_dino(dt_datasaurusdozen, aa_datasaurusdozen, dataset));
+	lub << Append(create_statistics_table_dino(aa_datasaurusdozen[dataset]));
+	return(lub);
+);
+
+vlb_datasaurusdozen = function({dt_datasaurusdozen, aa_datasaurusdozen}, {Default Local},
+	vlb = V List Box(align("center"),
+		H List Box(align("center"),
+			Text Box("Datasaurus Dozen", << Set Font Size(18)),
+			Button Box("autodesk.com", Web("https://www.autodesk.com/research/publications/same-stats-different-graphs"), << Underline Style(1))
+		),
+		Lineup Box(N Col(4),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "jmpman"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "bullseye"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "circle"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "dots"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "down_parab"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "h_lines"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "high_lines"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "slant_down"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "slant_up"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "star"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "v_lines"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "wide_lines"),
+			create_datasaurusdozen_lub(dt_datasaurusdozen, aa_datasaurusdozen, "x")			
+		)
+	);
+	return(vlb);
+);

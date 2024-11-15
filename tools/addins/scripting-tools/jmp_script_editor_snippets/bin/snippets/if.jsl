@@ -1,0 +1,5 @@
+If(condition1,
+	//code1
+, //else
+	//code2
+);

@@ -1,0 +1,250 @@
+﻿Names Default To Here(1);
+
+//currently has problem if ith doesnt end up even with max iteration...
+
+Define Class("ProgressBar",
+/************************************************************************************************
+	Class: ProgressBar
+		Base class for ProgressBar		
+		*Note:* Using this will most likely slow down your code a bit
+	
+	Prototype:
+		> pb = New Object(ProgressBar(<max_iteration = 1>, <title = "Progress Bar">, <ith_iter_to_print = 5>)
+		> pb << update(current_iteration, <update_text = "">)
+		> pb << close()
+
+	Parameters:
+		max_iteration - Maximum iterations for the progress
+		ith_iter_to_print - ith values to print. Modulo(current_iteration, ith_iter_to_print)
+	
+	Examples:
+		----------JSL-----------
+		pb = New Object(ProgressBar(10, "Analyzing Columns", 1));
+		For(i = 1, i <= 10, i++,
+			wait(1);
+			cancel_pressed = pb << update(i, "Analyzing column " || hex(i));
+			If(cancel_pressed == 1,
+				break();
+			);
+		);
+		pb << Close;
+		pb = .;
+		------------------------
+************************************************************************************************/
+	progress_bar_width = 500;
+	progress_bar_height = 20;
+	
+	show_graph = 0;
+	show_cancel = 0;
+	show_stats = 0;
+
+	color_left_red = "Dark Red";
+	color_right_red = "Light Red";
+	
+	aa_refs = .;
+	start_time = .;
+	time_collector = .;
+	title = .;
+	max_iteration = .;
+	ith_iter_to_print = .;
+	
+	graph_x = [];
+	graph_y = [];
+	
+	_init_ = Method({max_iter, window_title = "Progress Bar", ith_to_print = 10},
+		max_iteration = max_iter;
+		title = window_title;
+		ith_iter_to_print = ith_to_print;
+		aa_refs = Associative Array();
+	);
+	create = Method({vlb_pb},
+		aa_refs["nw"] = New Window(title,
+			<<Show Menu(0),
+			<<Show Toolbars(0),
+			V List Box(
+				Align("center"),
+				aa_refs["gb_if"] = If Box(0, aa_refs["gb"] = Graph Box(Frame Size(progress_bar_width, 150), X Scale(0, max_iteration), Y Scale(0, 0.2))),
+				H List Box(Spacer Box(Size(35, 0)), aa_refs["pb"] = vlb_pb),
+				aa_refs["cancel_if"] = If Box(0, aa_refs["cancel_btn"] = Button Box("Cancel", << style("Toggle")))
+			)
+		);
+		//aa_refs["nw"] << Set Window Icon("DebuggerProfilerCollectionByTime");
+		aa_refs["nw"] << Set Window Icon("DebuggerRunWithoutBreakpoints");
+		aa_refs["gb"][Axis Box(1), Text Edit Box(1)] << Set Text("Iter duration");
+		aa_refs["gb"][Axis Box(2), Text Edit Box(1)] << Set Text("Iteration");
+		aa_refs["gb"][Axis Box(1)] << Remove Axis Label();
+		aa_refs["gb"][Axis Box(2)] << Remove Axis Label();
+		Return(aa_refs);
+	);
+
+	update = Method({current_iteration, update_text = ""},
+		if(IsMissing(start_time),
+			start_time = HP Time();
+		);
+		If(check_update(current_iteration),
+			If(show_graph,
+				update_graph(current_iteration);
+			);
+			aa_refs["nw"] << Bring Window To Front;
+			update_pb(current_iteration, update_text);
+			aa_refs["nw"] << Update Window;
+		);
+		If(show_cancel,
+			return(update_cancel()),
+			return(.)
+		);
+	);
+	
+	check_update = Method({current_iteration},
+		return(If(Modulo(current_iteration, ith_iter_to_print) == 0,1,0));
+	);
+	
+	Enable Graph = Method({},
+		//should be divided by ith to print...
+		graph_x = Index(0, max_iteration, ith_iter_to_print);
+		graph_y = Matrix(1, (max_iteration / ith_iter_to_print) + 1);
+		//time_collector = HP Time();
+		aa_refs["gb_if"] << Set(1);
+		update_graph(0);
+		show_graph = 1;
+	);
+	
+	Enable Cancel = Method({},
+		aa_refs["cancel_if"] << Set(1);
+		show_cancel = 1;
+	);
+	
+	update_graph = Method({current_iteration},
+		if(current_iteration == 0,
+			time_collector = HP Time();
+		);
+		temp_time = HP Time();
+		graph_y[current_iteration/ith_iter_to_print + 1] = (temp_time - time_collector) * 10^-6;
+		time_collector = temp_time;
+		Eval(Eval Expr(aa_refs["gb"][AxisBox(1)] << Max(Expr(Max(graph_y)))));
+		Eval(Eval Expr(aa_refs["gb"] << Set Graphics Script({Line(Expr(graph_x), Expr(graph_y))})));
+	);
+	
+	update_cancel = Method({},
+		cancel_status = aa_refs["cancel_btn"] << get;
+		If(cancel_status,
+			aa_refs["nw"] <<Set Window Icon("DebuggerAddBreakpoint");
+		);
+		Return(cancel_status);
+	);
+	
+	close = Method({},
+		aa_refs["nw"] << Close Window;
+		return((HP Time() - this:start_time) / 10^6);
+	);
+);
+
+Define Class(
+//Modified from https://community.jmp.com/t5/Uncharted/Progress-Bar-with-Cancel-Button/ba-p/433560 by @Craige_Hales
+	"ProgressBar1",
+	baseclass(ProgressBar),
+	
+	color_left = "Light Green";
+	color_right = "Dark Green";
+	
+	_init_ = Method({max_iter, window_title = "Progress Bar", ith_to_print = 10},
+		super:_init_(max_iter, window_title, ith_to_print);
+		aa_refs << Insert(create(create_pb()));
+	);
+	
+	create_pb = Method({},
+		vlb = V List Box(align("center"),
+			aa_refs["update_text"]= Text Box("", << setwrap(progress_bar_width)),
+			aa_refs["teb"] = Text Box("", <<setwrap(progress_bar_width)),
+			H List Box(
+				aa_refs["left"] = Spacer Box(size(0, progress_bar_height), color(color_left)),
+				aa_refs["right"] = Spacer Box(size(progress_bar_width, 20), color(color_right)),
+				<<padding(3, 3, 3, 3),
+				<<backgroundcolor("dark gray")
+			),
+			aa_refs["t_done"] = Text Box("0%", << set width(50))
+		);
+		Return(vlb);
+	);
+
+	update_pb = Method({current_iter, update_text = ""},
+		perc_done = Min(current_iteration / max_iteration, 1);
+		leftsize = progress_bar_width * perc_done;
+		aa_refs["left"] << width(leftsize);
+		aa_refs["right"] << width(progress_bar_width - leftsize);
+		
+		cur_time = Round((HP Time() - start_time) / 10^6, 2); //could use formatting to keep same length
+		avg_time = (cur_time / current_iteration) * ith_iter_to_print;
+		est_time = Round((max_iteration - current_iteration)* avg_time, 3);
+		avg_time = Round(avg_time, 3);
+		aa_refs["teb"] << settext(Eval Insert("Iteration ^current_iteration^ of ^this:max_iteration^. Average: ^avg_time^s. Total: ^cur_time^s. Estimated: ^est_time^s."));
+		aa_refs["update_text"] << settext(update_text);
+		aa_refs["t_done"] <<settext(char(round(perc_done*100,2))||"%");
+		aa_refs["teb"] << updatewindow; // this works without the wait
+		
+	);	
+);
+
+
+Define Class(
+	////https://community.jmp.com/t5/JMP-Add-Ins/Data-cleaning-utility-checking-for-the-most-likely-modeling-type/ta-p/23745 modified from Quick Clean addin by @DonMcCormack
+	"ProgressBar2",
+	baseclass(ProgressBar),
+
+	_init_ = Method({max_iter, window_title = "Progress Bar", ith_to_print = 10},
+		super:_init_(max_iter, window_title, ith_to_print);
+		aa_refs << Insert(create(create_pb()));
+	);
+	
+	create_pb = Method({},
+		pb_vlb = V List Box(align("center"),
+			aa_refs["update_text"] = Text Box("", << setwrap(progress_bar_width)),
+			aa_refs["gb_pb"] = Graph Box(Frame Size(progress_bar_width, 60), Fill Color({0, 0.5, 0.5}), Y Scale(0, 1), X Scale(0, 1), Rect(0, 1, 0, 0, 1)),
+		);
+		aa_refs["gb_pb"][Axis Box(1)] << Remove Axis Label;
+		aa_refs["gb_pb"][Axis Box(2)] << Format("Percent", 10, 0);
+		aa_refs["gb_pb"][Axis Box(2), Text Edit Box(1)] << Set Text("% Completed");
+		aa_refs["gb_pb"][Axis Box(1)] << Axis Settings(Show Minor Labels(0), Show Major Labels(0), Show Minor Ticks(0), Show Major Ticks(0));
+		return(pb_vlb);
+	);
+	
+	update_pb = Method({current_iteration, update_text = ""},
+		aa_refs["update_text"] << Set Text(update_text);
+		cur_val = current_iteration / max_iteration;
+		Eval(EvalExpr(aa_refs["gb_pb"] << Set Graphics Script({{Fill Color({0, 0.5, 0.5}), Rect(0, 1, Expr(cur_val), 0, 1)}})));
+		aa_refs["gb_pb"] << Update Window;
+	);	
+);
+
+
+Define Class(
+	"ProgressBar3",
+	baseclass(ProgressBar),
+
+	color_left = "Green";
+	color_right = "Dark Green";
+
+	max_blocks = 10;
+	_init_ = Method({max_iter, window_title = "Progress Bar", ith_to_print = 10},
+		super:_init_(max_iter, window_title, ith_to_print);
+		aa_refs << Insert(create(create_pb()));
+	);
+	
+	create_pb = Method({},
+		start_str = Repeat("⬜", max_blocks);
+		lup = Lineup Box(N Col(3),
+			aa_refs["tb_left"] = Text Box("",<< Set Font Size(30), << Text Color(color_left)),
+			aa_refs["tb_right"] = Text Box(start_str, << Set Font Size(30), << Text Color(color_right)),
+			aa_refs["tb_perc"] = Text Box("00%", << Set Font Size(30), << set width(100));
+		);
+		return(lup);
+	);
+
+	update_pb = Method({current_iter, update_text = ""}, 
+		cur_val = Floor(current_iteration / (max_iteration/max_blocks));
+		aa_refs["tb_left"] << set text(Repeat("⬛", cur_val));
+		aa_refs["tb_right"] << set text(Repeat("⬜",max_blocks - cur_val));
+		aa_refs["tb_perc"] << set text(char(Round(100*cur_val / max_blocks,2)) || "%");
+	);
+);
+Write();

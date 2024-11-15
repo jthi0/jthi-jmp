@@ -1,0 +1,11 @@
+﻿dsn_string = "";
+
+sql_template = "\[
+select 1
+from dual	
+]\";
+
+dbc = Create Database Connection(dsn_string);
+sql = Eval Insert(sql_template, "¤"); // use ¤ to avoid issues with regex when using ^
+dt = Execute SQL(dbc, sql, "NewTable");
+Close Database Connection(dbc);

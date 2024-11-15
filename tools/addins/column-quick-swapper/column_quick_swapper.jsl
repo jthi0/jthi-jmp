@@ -1,0 +1,45 @@
+/*""" Add utility to easily change columns in Y or X role in Graph Builder
+
+Author: jthi
+Creation Date: 2024-02-17
+Creation JMP Version: JMP Pro 17.2
+
+Description: Add list of columns which user can select to change columns
+used for graph builder's X or Y role
+
+Todo:
+    * Add more utility modals to display information to user
+    * Test if multiple variables should/could be added at the same time
+    * Optimize that if column is already in the axis IN same location, do not re-add it
+	* Move icons to config file
+	* Add capability to automatically detect if other role has already been added
+	* Fix setting List Box back to Horizontal 0
+	
+"""*/
+
+Names Default To Here(1);
+
+
+// for functions used in column filter controls
+If(Namespace Exists("ColumnQuickSwap"), 
+	ColumnFilter = Namespace("ColumnQuickSwap");
+,
+	ColumnFilter = New Namespace("ColumnQuickSwap");
+);
+Include("include/ColumnQuickSwap.jsl");
+
+Include("config/cf_config.jsl");
+Include("include/cf_column_filter.jsl");
+Include("include/cf_configure_ui.jsl");
+Include("include/cf_util.jsl");
+
+
+Try(
+	{cur_report, cur_dt} = get_current_report_dt();
+	aa_selections = request_configuration(cur_report, cur_dt);
+	add_column_filter_to_report(cur_report, cur_dt, aa_selections);
+,
+	utility_modal_window("Exception", Char(exception_msg), "Error", "ErrorSmall");
+);
+
+Write();

@@ -1,0 +1,41 @@
+/*""" Addin creation template
+
+Author: jthi
+Creation Date: YYYY-MM-DD
+Creation JMP Version: JMP Pro 17.2
+
+Description: Longer description
+
+Todo:
+    * 
+	
+"""*/
+
+Names Default To Here(1);
+
+//================================================================================
+// 	Initialization
+//================================================================================
+Include("include/external/utility/external_utility.jsl");
+Include("config/config.jsl"); // could use generic names for these BUT JMP doesn't want us to due to bad home window
+
+
+// Initial checks
+If(N Table() == 0,
+	error_msg = "No tables open. Open a table and re-run.";
+	mini_modal_window("Error", error_msg, "Error", "ErrorSmall");
+	//Throw(error_msg);
+	stop();
+);
+
+
+//================================================================================
+// 	Run app inside Try block
+//================================================================================
+Try(
+	run_app;
+,
+	mini_modal_window("Error", error_msg, "Error", "ErrorSmall");
+);
+
+Write(); // to reduce the chance of unnecessary log spam

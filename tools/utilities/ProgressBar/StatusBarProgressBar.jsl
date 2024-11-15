@@ -1,0 +1,25 @@
+﻿Names Default To Here(1);
+// https://www.jmp.com/support/help/en/17.2/index.shtml#page/jmp/send-information-to-a-user.shtml
+
+max_iteration = 20;
+current_iteration = 1;
+
+update_txt = Expr(
+	cur_val = Floor(current_iteration / (max_iteration / 10));
+	process_text = "Running...";
+	progress_done = Repeat(":black_large_square:", cur_val);
+	progress_left = Repeat(":white_large_square:", 10 - cur_val);
+	progress_text_line = Char(Round(100 * cur_val / 10, 2)) || "%";
+
+	progress_text = Eval Insert("^process_text^\!N^progress_done^^progress_left^\!N^progress_text_line^");
+);
+
+Caption({800, 900}, progress_text, Font("Arial Black"), Font Size(20), Text Color("blue"), Back Color("yellow"));
+
+For(i = 1, i <= max_iteration, i++,
+	current_iteration = i;
+	update_txt;
+	Caption(progress_text, Font("Arial Black"), Font Size(20), Text Color("blue"), Back Color("yellow"));
+	wait(0.1);
+);
+Caption(remove);

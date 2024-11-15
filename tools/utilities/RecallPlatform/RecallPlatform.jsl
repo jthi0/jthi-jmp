@@ -1,0 +1,349 @@
+/*"""One sentence function description.
+
+Author: 
+Creation Date: 
+Creation JMP Version: 
+
+Description: 
+
+Todo:
+    * 
+    * 
+	
+"""*/
+
+Names Default To Here(1);
+
+Define Class("RecallPlatform",
+	displaybox_template = [
+		"ListBoxBox" => ["ref" => {}, "values" => {}, "selections" => {}],
+		"CheckBoxBox" => ["ref" => {}, "values" => {}],
+		"ComboBox" => ["ref" => {}, "values" => {}],
+		"RadioBox" => ["ref" => {}, "values" => {}],
+		"TextEditBox" => ["ref" => {}, "values" => {}],
+		"NumberEditBox" => ["ref" => {}, "values" => {}],
+		"SliderBox" => ["ref" => {}, "values" => {}]
+		// Can mess up with CalendarBox as it isn't implemented (should most likely be ignored)
+	];
+
+	top_ref = Empty();
+	platform_name = "";
+	recall_history = Associative Array();
+	recall_btn = Empty();
+	persist_path = Convert File Path("$TEMP/JMPRecallPlatform/");
+	
+	history_count = 2; // + 1 due to Default and separator
+	persist = 0; // would require filepath...
+	
+	
+	_init_ = Method({input_history_count = 3, input_persist = 0},
+		recall_history = Associative Array();
+		history_count = input_history_count;
+		
+		/*
+		persist = input_persist;
+		If(persist & !Directory Exists(persist_path),
+			Create Directory(persist_path);
+		);
+		*/
+		Return(.);
+	);
+	
+	
+	get_checkboxbox = Method({},
+		displayboxes = displaybox_template["CheckBoxBox"];
+		
+		cbbs = top_ref << XPath("//CheckBoxBox"); // need a way to ignore filtercolbox?
+
+		If(N Items(cbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+		);
+		displayboxes["ref"] = cbbs;
+		displayboxes["values"] = cbbs << Get Selected Indices;
+		
+		return(displayboxes);
+	);
+	
+	set_checkboxbox = Method({displaybox},
+		For Each({{ref, values}}, Across(displaybox["ref"], displaybox["values"]),
+			ref << Set All(0, Run Script(0)); /* run script 0 could cause issues...*/
+			For Each({value}, values,
+				ref << Set(value, 1, Run Script(0));
+			);
+		);
+	);
+
+
+	get_combobox = Method({},
+		displayboxes = displaybox_template["ComboBox"];
+		
+		refs = top_ref << XPath("//ComboBox"); // need a way to ignore filtercolbox?
+
+		If(N Items(cbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+		);
+		displayboxes["ref"] = refs;
+		displayboxes["values"] = refs << Get Selected;
+		
+		return(displayboxes);
+	);
+
+	set_combobox = Method({displaybox},
+		For Each({{ref, value}}, Across(displaybox["ref"], displaybox["values"]),
+			idx = Contains(ref << get items, value);
+			If(idx > 0,
+				ref << Set(idx, Run Script(0)); /* run script 0 could cause issues...*/	
+			);
+		);
+	);
+	
+	get_radiobox = Method({},
+		displayboxes = displaybox_template["RadioBox"];
+		
+		refs = top_ref << XPath("//RadioBox"); // need a way to ignore filtercolbox?
+
+		If(N Items(cbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+		);
+		displayboxes["ref"] = refs;
+		displayboxes["values"] = refs << Get;
+		
+		return(displayboxes);
+	);
+	
+	set_radiobox = Method({displaybox},
+		For Each({{ref, value}}, Across(displaybox["ref"], displaybox["values"]),
+			ref << Set(value, Run Script(0)); /* run script 0 could cause issues...*/
+		);
+	);
+
+	get_texteditbox = Method({},
+		displayboxes = displaybox_template["TextEditBox"];
+		
+		refs = top_ref << XPath("//TextEditBox"); // need a way to ignore filtercolbox?
+
+		If(N Items(cbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+		);
+		displayboxes["ref"] = refs;
+		displayboxes["values"] = refs << Get Text;
+		
+		return(displayboxes);
+	);
+	
+	set_texteditbox = Method({displaybox},
+		For Each({{ref, value}}, Across(displaybox["ref"], displaybox["values"]),
+			ref << Set Text(value, Run Script(0)); /* run script 0 could cause issues...*/
+		);
+	);
+	
+	get_numbereditbox = Method({},
+		displayboxes = displaybox_template["NumberEditBox"];
+		
+		refs = top_ref << XPath("//NumberEditBox"); // need a way to ignore filtercolbox?
+
+		If(N Items(cbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+		);
+		displayboxes["ref"] = refs;
+		displayboxes["values"] = refs << Get;
+		
+		return(displayboxes);
+	);
+	
+	
+	set_numbereditbox = Method({displaybox},
+		For Each({{ref, value}}, Across(displaybox["ref"], displaybox["values"]),
+			ref << Set(value, Run Script(0)); /* run script 0 could cause issues...*/
+		);
+	);
+
+	get_sliderbox = Method({},
+		displayboxes = displaybox_template["SliderBox"];
+		
+		refs = top_ref << XPath("//SliderBox"); // need a way to ignore filtercolbox?
+
+		If(N Items(cbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+		);
+		displayboxes["ref"] = refs;
+		displayboxes["values"] = refs << Get;
+		
+		return(displayboxes);
+	);
+	
+	
+	set_sliderbox = Method({displaybox},
+		For Each({{ref, value}}, Across(displaybox["ref"], displaybox["values"]),
+			ref << Set(value); /* run script 0 could cause issues...*/
+		);
+	);
+	
+	get_listboxbox = Method({},
+		displayboxes = displaybox_template["ListBoxBox"];
+
+		lbbs = top_ref << XPath("//ListBoxBox"); // need a way to ignore filtercolbox?
+		If(N Items(lbbs) == 0,
+			displayboxes["ref"] = {};
+			displayboxes["values"] = {};
+			displayboxes["selections"] = {};
+		);
+		
+		displayboxes["ref"] = lbbs;
+		displayboxes["values"] = lbbs << get items;
+		displayboxes["selections"] = lbbs << Get Selected Indices;
+
+		return(displayboxes);	
+	);
+	
+	set_listboxbox = Method({displaybox},
+		For Each({{ref, value}, idx}, Across(displaybox["ref"], displaybox["values"]),
+			ref << Set Items(value);
+			For(i = 1, i <= N Items(value), i++, // set selections (most likely only useful for ListBox?)
+				ref << Set Selected(i, Contains(displaybox["selections"][idx], i) > 0, Run Script(0));
+			);
+		);
+	);
+
+	clear_recall_history = Method({},
+		For Each({{key, value}}, recall_history,
+			If(key != "Default",
+				recall_history << Remove Item(key);
+			);
+		);
+		set_button_items();
+	);
+
+	set_button_items = Method({},
+		recall_items = Reverse(recall_history << Get Keys);
+		Remove From(recall_items, Contains(recall_items, "Default"));
+		new_items = Transform Each({item}, recall_items, Char(item));
+		Insert Into(new_items, "-");
+		Insert Into(new_items, "Store Current");
+		Insert Into(new_items, "Default");
+		Insert Into(new_items, "-");
+		Insert Into(new_items, "Clear");
+		
+		
+		recall_btn << Set Menu Items(new_items);
+	);
+	
+	get_values = Method({recall_key = "Recall"},
+		displayboxes = displaybox_template;
+
+		For Each({{key, values}}, displayboxes,
+			Match(key
+				, "ListBoxBox", displayboxes["ListBoxBox"] = get_listboxbox()
+				, "CheckBoxBox", displayboxes["CheckBoxBox"] = get_checkboxbox()
+				, "ComboBox", displayboxes["ComboBox"] = get_combobox()
+				, "RadioBox", displayboxes["RadioBox"] = get_radiobox()
+				, "TextEditBox", displayboxes["TextEditBox"] = get_texteditbox()
+				, "NumberEditBox", displayboxes["NumberEditBox"] = get_numbereditbox()
+				, "SliderBox", displayboxes["SliderBox"] = get_sliderbox()
+			);
+		);
+
+		If(recall_key == "Default",
+			recall_key = "Default";
+		, history_count == 1,
+			recall_key = "Recall";
+		,
+			recall_key = Char(Today());
+			If(N Items(recall_history) > history_count, // > and not >= due to Default
+				recall_history << Remove Item(recall_history << First);
+			);
+		);
+		
+		recall_history[recall_key] = displayboxes;
+
+		
+		set_button_items();
+	);
+	
+	set_values = Method({recall_key = "Recall"},
+		For Each({{key, values}}, recall_history[recall_key],
+			Match(key,
+				"ListBoxBox", set_listboxbox(values)
+				, "CheckBoxBox", set_checkboxbox(values)
+				, "ComboBox", set_combobox(values)
+				, "RadioBox", set_radiobox(values)
+				, "TextEditBox", set_texteditbox(values)
+				, "NumberEditBox", set_numbereditbox(values)
+				, "SliderBox", set_sliderbox(values)
+			);
+		);		
+	);
+	
+	update_references = Method({},
+		For Each({{history_key,  history_values}}, recall_history,
+			For Each({{dbname, dbvalues}}, history_values,
+				recall_history[history_key][dbname]["ref"] = top_ref << XPath("//" || dbname);
+			);
+		);
+	);
+	
+
+	get_defaults = Method({},
+		get_values("Default");
+	);
+	
+	set_defaults = Method({},
+		set_values("Default");
+	);
+	
+	Create Recall Button = Method({},
+		recall_btn = Button Box("Recall", << Set Function(Method({this},
+			Local({idx, menu_value},
+				idx = this << Get Menu Choice;
+				If(!idx,
+					return()
+				);
+				menu_value = (this << Get Menu Items)[this << Get Menu Choice];
+				If(menu_value == "Clear",
+					clear_recall_history();
+				, menu_value == "Store Current",
+					get_values();
+				,
+					set_values(menu_value);	
+				);
+			);
+		)));
+		
+		return(recall_btn);
+	);
+	
+	Initialize = Method({window_ref},
+		top_ref = window_ref;
+		If(!Contains(recall_history, "Default"),
+			get_defaults();
+		,
+			update_references();
+			set_button_items();
+		);
+	);
+	
+	Save to Recall = Method({},
+		get_values();
+	);
+);
+
+
+recall_platform = function({platform_name, history_count = 3}, {Default Local},
+	If(!Namespace Exists("CustomRecall"),
+		New Namespace("CustomRecall");
+		Namespace("CustomRecall"):platforms = Associative Array();
+	);
+	If(!Contains(Namespace("CustomRecall"):platforms, platform_name),
+		Namespace("CustomRecall"):platforms[platform_name] = New Object(RecallPlatform(history_count));
+	);
+	
+	return(Namespace("CustomRecall"):platforms[platform_name]);
+);
+
+Write();

@@ -1,0 +1,73 @@
+Names Default To Here(1);
+
+
+utility_modal_window = function({title, text, text_icon = "BlankIndex", window_icon = "NewApplication"}, {Default Local},
+	/*""" Show simple modal window to user
+	
+	Partially inspired by @Craige_Hales https://community.jmp.com/t5/Uncharted/Modal-Dialogs/ba-p/436177
+	
+	Args:
+		title (string): Title of the modal window
+		text (string): Text to display to user
+		text_icon (string): Icon displayed next to text
+		window_icon (string): Window icon
+	
+	Returns:
+		num: 1 if user pressed OK and 0 if user pressed cancel / cross
+	"""*/
+	
+	nw = New Window(title, <<modal, << return result, << show toolbars(0), << show menu(0), << Set Window Icon(window_icon),
+		H List Box(
+			Panel Box("Message",
+				H List Box(
+					Icon Box(text_icon), 
+					Spacer Box(size(10, 1)), 
+					V Center Box(Text Box(text, << Set Wrap(300)))
+				)
+			),
+			Spacer Box(Size(10, 0)),
+			Panel Box("Actions",
+				Lineup Box(N Col(1),
+					Button Box("OK"),
+					Button Box("Cancel")
+				)
+			)
+		)
+	);
+	return(nw["Button"]);
+);
+
+
+get_current_report_dt = function({}, {Default Local},
+// Currently only works for Graph Builder
+	If(Is Empty(Current Report()),
+		Throw("No open reports found");
+	);
+	
+	cur_report = Current Report() << XPath("//OutlineBox[@helpKey='Graph Builder']");
+	If(N Items(cur_report) < 1,
+		Throw("No graph builder open");
+	,
+		cur_report = cur_report[1] << Get Scriptable Object;
+	);
+	cur_dt = cur_report << Get Data Table;
+	
+	return(Eval List({cur_report, cur_dt}));
+);
+
+
+get_role_columns = function({report, role}, {Default Local},
+	all_variables = report << get variables;
+	role_columns = {};
+	For Each({variable}, all_variables,
+		cur_role = variable["Role"];
+		colname = Arg(variable, 1) << get name;
+		If(cur_role == role,
+			Insert Into(role_columns, colname);
+		)
+	);
+	
+	return(role_columns);
+);
+
+Write();

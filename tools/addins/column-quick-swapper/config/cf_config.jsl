@@ -1,0 +1,8 @@
+Names Default To Here(1);
+
+APP_NAME = "Column Quick Swapper";
+WINDOW_ICON = "WinEditSubmitScriptDebug";
+window_name = "Configure " || APP_NAME;
+
+ROLE_SELECTIONS = {"Y", "X"};
+COMBINE_SCALE_OPTIONS = {"Merged", "Parallel Merged", "Parallel Independent", "Nested", "Separated"};

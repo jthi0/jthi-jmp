@@ -1,0 +1,5 @@
+Try(
+	Show(a);
+, // Catch
+	show(exception_msg);
+);

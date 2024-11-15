@@ -1,0 +1,148 @@
+/*""" https://community.jmp.com/t5/Discussions/Can-JMP-show-the-probability-of-1-result-or-range-through-a/m-p/696981
+
+Author: jthi
+Creation Date: 2023-11-11
+Creation JMP Version: JMP Pro 17.2
+
+Description: Custom "platform"
+
+Todo:
+    * Cleanup script -- partially done
+    * Add comments
+    * Add settings (bin counts and such)
+    * Make into addin
+    * Fix to work with different types of datasets (bin calculation might need some work regarding this)
+    
+    * Don't create new column during initialization --- DONE
+	
+"""*/
+
+Names Default To Here(1);
+
+frame_width = 400;
+frame_height = 200;
+
+
+Include("bin/pc_utilities.jsl");
+// Initial checks
+If(N Table() == 0,
+	error_msg = "No tables open. Open a table and re-run.";
+	mini_modal_window("Error", error_msg, "Error", "ErrorSmall");
+	//Throw(error_msg);
+	stop();
+);
+
+Include("config/pc_config.jsl");
+Include("bin/pc_userinputs.jsl");
+Include("bin/pc_calc.jsl");
+
+dt = Current Data Table();
+
+cols_of_interest = get_user_inputs(dt);
+
+If(IsMissing(cols_of_interest),
+	error_msg = "User cancelled"; 
+	//Throw(error_msg); // No need for mini-modal here, as user cancelled on purpose
+	stop();
+);
+
+aa_cols = Associative Array();
+For Each({colname}, cols_of_interest,
+	aa_cols[colname] = Associative Array();
+	aa_cols[colname]["bins"] = calculate_bin_info(dt, colname);
+);
+
+update_window = function({nw, aa_cols, colname}, {Default Local},
+	plot_histogram(aa_cols[colname]["histogram_collector"], aa_cols[colname]["bins"], colname, aa_cols[colname]["minvalue"], aa_cols[colname]["maxvalue"]);
+	update_certainty(aa_cols[colname]["tbref"], aa_cols[colname]["bins"], aa_cols[colname]["minvalue"], aa_cols[colname]["maxvalue"]);
+	
+	prob_tbs = (nw << XPath("//TextBox[contains(text(), '%')]")) << get text;
+	Remove From(prob_tbs, 1);
+	vals = Transform Each({prob_txt},  prob_tbs,
+		Num(Substitute(prob_txt, "%", "")) / 100
+	);
+	probval = Product(i = 1, N Items(vals), vals[i]);
+	tb_prob << Set Text(Char(Round(probval * 100, 3)) || "%");
+);
+
+
+create_ui = Expr(
+	nw = New Window("Forecasts",
+		V List Box(align("Center"),
+			H List Box(
+				Text Box("Probability calculator. Combined probability: ", << Set Wrap(700), << Set Font Size(16)),
+				tb_prob = Text Box("100%", << Set Font Size(16), << Set Font Style("Italic"))
+			),
+			tb = Lineup Box(N Col(3))
+		)
+	);
+	nw << Show Window(0);
+	
+	For Each({{colname, settings}}, aa_cols,
+		aa_cols[colname]["minvalue"] = settings["bins"]["data_min"] - settings["bins"]["data_range"] * 0.01;
+		aa_cols[colname]["maxvalue"] = settings["bins"]["data_max"] + settings["bins"]["data_range"] * 0.01;
+		
+		Eval(EvalExpr(
+			vlb = Tab Page Box(colname, V List Box(
+				//H Center Box(Text Box("Frequency Chart for " || colname, << Set Font Size(16), << Set Font Style("Bold"), << Set Wrap(1000))),
+				aa_cols[colname]["histogram_collector"] = V List Box(),
+				H List Box(
+					Spacer Box(Size(left_padding, 0)),
+					rsb = Range Slider Box(settings["bins"]["data_min"] - settings["bins"]["data_max"] * 0.04, settings["bins"]["data_max"] * 1.04, 
+						aa_cols[Expr(colname)]["minvalue"],
+						aa_cols[Expr(colname)]["maxvalue"]
+					),
+				),
+				H Center Box(
+					H List Box(
+						Text Box("Certainty: "),
+						aa_cols[Expr(colname)]["tbref"] = Text Box("100%"),
+					)
+				),
+				H List Box(
+					Spacer Box(Size(left_padding, 0)),
+					neblow = Number Edit Box(aa_cols[colname]["minvalue"]),
+					Spacer Box(Size(frame_width - 200, 0)),
+					nebhigh = Number Edit Box(aa_cols[colname]["maxvalue"])
+				)
+			), << Set Base Font("Title"))
+		));
+		vlb << Title("Frequency Chart - " || colname);
+		Eval(EvalExpr(
+			rsb << Set Script(
+				Expr(neblow) << Set(aa_cols[Expr(colname)]["minvalue"], run script(0));
+				Expr(nebhigh) << Set(aa_cols[Expr(colname)]["maxvalue"], run script(0));
+				update_window(Expr(nw), aa_cols, Expr(colname));
+				(aa_cols[Expr(colname)]["histogram_collector"] << child) << Inval; // histogram graphox
+			)
+		));
+		Eval(EvalExpr(
+			neblow << Set Function(function({this},
+				Expr(rsb) << Set Lower(this << get, 1, Run Script(1));
+			))
+		));
+		Eval(EvalExpr(
+			nebhigh << Set Function(function({this},
+				Expr(rsb) << Set Upper(this << get, 1, Run Script(1));
+			))
+		));
+		rsb << Set Width(frame_width);
+
+		update_window(nw, aa_cols, colname);
+		tb << Append(vlb);
+//		tb << Insert(colname, vlb);
+		
+	);
+	/*
+	update_window;
+	nw << Update Window;
+
+	left_padding = (histogram[AxisBox(1)] << get size)[1];
+	right_padding = (histogram[AxisBox(2)] << get size)[1];
+	rsb << Set Width(1200);
+	wait(0);
+	
+	*/
+	nw << Show Window(1);
+);
+create_ui;

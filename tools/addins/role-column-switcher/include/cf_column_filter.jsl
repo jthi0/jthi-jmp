@@ -1,0 +1,190 @@
+Names Default To Here(1);	
+
+create_column_filter = function({role, columns, title, initial_columns, smart_combine, cur_dt}, {Default Local},
+	Eval(EvalExpr(
+		ob = Outline Box(title,
+			cb = Context Box(
+				box:column_selection = columns;
+				V List Box(
+					Lineup Box(N Col(2),
+						V Center Box(cb_autoupdate = Check Box({"Auto-Update"}, << Set Tip("Auto-update graph when selections change."), << Set All(1))),
+						btn_refresh = Button Box("Refresh", << Set Icon("Refresh"), << Set Tip("Refresh with current selections.")),
+					),
+					Lineup Box(N Col(2),
+						V Center Box(Text Box("Combine Scales")),
+						combo_merge = Combo Box(Expr(COMBINE_SCALE_OPTIONS)),
+					),
+					H List Box(
+						V List Box(
+							H List Box(
+								align("center"),
+								teb_filter = Text Edit Box("", <<Set Min Size(125, -1), <<Set Max Size(150, -1), <<Set Auto Stretching(1, 0), <<Set Hint("Filter column list...")),
+								btn_filter = Button Box("", <<Set Icon("Refresh"), << Set Tip("Filter with text")),
+								btn_clear_filter = Button Box("", <<Set Icon("TabCloseActive"), << Set Tip("Clear filter")),
+							),
+							clb = Col List Box(<< Set Items(columns))
+						),
+						Lineup Box(N Col(1),
+							btn_add = Button Box("", << Set Icon("ListItemAdd"), << Set Tip("Add new columns")),
+							btn_remove = Button Box("", << Set Icon("ListItemRemove"), << Set Tip("Remove selected columns")),
+							Spacer Box(Size(0, 5)),
+							btn_up = Button Box("", << Set Icon("ListItemUp"), << Set Tip("Move selection up")),
+							btn_down = Button Box("", << Set Icon("ListItemDown"), << Set Tip("Move selection down")),
+							btn_swap = Button Box("", << Set Icon("FormulaSwap"), << Set Tip("Reverse order of selected"))
+						)
+					)
+				)
+			)
+		);
+	));
+	clb << Set N Lines(20);
+		
+	If(smart_combine,
+		If(N Items(initial_columns) > 0,
+			modeling_type = Column(cur_dt, initial_columns[1]) << Get Modeling Type;
+			If(modeling_type == "Continuous",
+				combine_mode = "Merged";
+			,
+				combine_mode = "Nested";
+			);
+			combine_mode_idx = Contains(COMBINE_SCALE_OPTIONS, combine_mode);
+			combo_merge << Set(combine_mode_idx);
+		);
+	);
+	
+	update_column_list = EvalExpr(
+		context = Expr(cb);
+		context:column_selection = (Expr(clb) << Get Items);
+	);
+	
+
+	update_report_with_selections = EvalExpr(
+		If((Expr(cb_autoupdate) << get),
+			cur_selection = Expr(clb) << get selected;
+			combine_mode = Expr(combo_merge) << get selected;
+			ColumnQuickSwap:update_report_role(Expr(cur_report), cur_selection, Expr(role), combine_mode);
+		);
+	);
+	
+	Eval(EvalExpr(
+		teb_filter << Set Function(Function({this},
+			ColumnQuickSwap:filter_column_selection(Expr(clb), Expr(cb), this << get text);
+		));
+	));
+	
+	Eval(EvalExpr(
+		btn_filter << Set Script(
+			ColumnQuickSwap:filter_column_selection(Expr(clb), Expr(cb), Expr(teb_filter) << get text);
+		);
+	));
+	
+	Eval(EvalExpr(
+		btn_clear_filter << Set Script(
+			Expr(teb_filter) << Set Text("", Run Script(1));
+		);
+	));
+	// get which are already selected
+	// update list with only filtered values
+	// 
+	
+	
+	Eval(EvalExpr(
+		btn_up << Set Script(
+			ColumnQuickSwap:move_columns(Expr(clb), "Up");
+			Expr(NameExpr(update_column_list));
+		);
+	));
+	
+	Eval(EvalExpr(
+		btn_down << Set Script(
+			ColumnQuickSwap:move_columns(Expr(clb), "Down");
+			Expr(NameExpr(update_column_list));
+		);
+	));
+	
+	Eval(EvalExpr(
+		btn_swap << Set Script(
+			ColumnQuickSwap:move_columns(Expr(clb), "Swap");
+			Expr(NameExpr(update_column_list));
+			Expr(Name Expr(update_report_with_selections));
+		);
+	));
+	
+	Eval(EvalExpr(
+		btn_add << Set Script(
+			ColumnQuickSwap:add_new_columns(Expr(cur_dt), Expr(clb));
+			Expr(NameExpr(update_column_list));
+		);
+	));
+	
+	Eval(EvalExpr(
+		btn_remove << Set Script(
+			ColumnQuickSwap:remove_columns(Expr(clb));
+			Expr(NameExpr(update_column_list));
+		);
+	));
+	
+	Eval(EvalExpr(
+		btn_refresh << Set Script(
+			cur_selection = Expr(clb) << get selected;
+			combine_mode = Expr(combo_merge) << get selected;
+			ColumnQuickSwap:update_report_role(Expr(cur_report), cur_selection, Expr(role), combine_mode);
+		);
+	));
+	
+	Eval(EvalExpr(
+		clb << Set Script(
+			Expr(Name Expr(update_report_with_selections));
+		)
+	));
+	
+	Eval(EvalExpr(
+		cb_autoupdate << Set Script(
+			Expr(Name Expr(update_report_with_selections))
+		)
+	));
+	
+	Eval(EvalExpr(
+		combo_merge << Set Script( 
+			Expr(Name Expr(update_report_with_selections));
+		)
+	));
+	
+	Eval(EvalExpr(
+		ob << Set Menu Script(
+			{"Remove Column Filter", Expr(ob) << Delete Box; /*(Expr(ob) << parent) << Set Horizontal(0);*/}
+		);
+	));
+	
+	For Each({init_col}, initial_columns,
+		found_idx = Contains(columns, init_col);
+		If(found_idx,
+			clb	<< Set Selected(found_idx, 1, Run Script(0));
+		);
+	);
+	
+	return(ob);
+);
+
+
+add_column_filter_to_report = function({cur_report, cur_dt, aa_selections}, {Default Local},
+	ob_titles = ((cur_report << top parent) << XPath("//OutlineBox")) << Get Title;
+
+	If(Contains(ob_titles, aa_selections["Title"]),
+		Throw("Report already contains " || aa_selections["Title"]);
+	);
+
+	cur_report << inval;
+	ob = create_column_filter(aa_selections["Role"], aa_selections["Columns"], 
+		aa_selections["Title"], aa_selections["Initial Columns"], aa_selections["Smart Combine"], cur_dt
+	);
+		
+	lb = (Report(cur_report) << top parent) << child;
+	lb << Set Horizontal(1);
+	lb << Prepend(ob);
+	
+	cur_report << update window;
+	wait(0);
+);
+
+Write();

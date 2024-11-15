@@ -1,0 +1,7 @@
+If(condition1,
+	//code1
+, //condition2,
+	//code2
+, //else
+	//code3
+);

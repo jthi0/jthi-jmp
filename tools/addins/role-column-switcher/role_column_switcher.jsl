@@ -1,0 +1,52 @@
+/*""" Add new feature to JMP which allows user to change columns in a Role
+
+Author: jthi
+Creation Date: 2024-05-18
+Creation JMP Version: JMP Pro 18.0
+
+Description: Column Switcher does run into issues if user changes
+columns which cross between multiple roles. Purpose of this tool
+is to just swap the columns in roles, not really caring what happens
+if such change is done
+
+Todo:
+	* Add more platforms than Graph Builder
+	
+"""*/
+
+Names Default To Here(1);
+
+
+// for functions used in column filter controls
+If(Namespace Exists("ColumnQuickSwap"), 
+	ColumnFilter = Namespace("ColumnQuickSwap");
+,
+	ColumnFilter = New Namespace("ColumnQuickSwap");
+);
+Include("include/ColumnQuickSwap.jsl");
+
+Include("config/cf_config.jsl");
+Include("include/cf_column_filter.jsl");
+Include("include/cf_configure_ui.jsl");
+Include("include/cf_util.jsl");
+
+dt = open("$SAMPLE_DATA/Big Class.jmp");
+
+gb = dt << Graph Builder(
+	Variables(X(:weight), Y(:height), Overlay(:sex)),
+	Elements(Points(X, Y, Legend(9)), Line Of Fit(X, Y, Legend(11)))
+);
+
+
+
+replace_role_column(gb, new_col, "Color");
+
+Try(
+	{cur_report, cur_dt} = get_current_report_dt("Graph Builder");
+	aa_selections = request_configuration(cur_report, cur_dt);
+	add_column_filter_to_report(cur_report, cur_dt, aa_selections);
+,
+	utility_modal_window("Exception", Char(exception_msg), "Error", "ErrorSmall");
+);
+
+Write();

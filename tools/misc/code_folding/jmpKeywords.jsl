@@ -1,0 +1,67 @@
+(Always) use Names default to here(1); to start a script
+
+Prefered method to refer to whole column in order:
+  -Column(dt,"column")
+  -dt:Name("column")
+  -dt:column
+
+AsColumn() and Column() differences. Column()[Row()] same as AsColumn()?
+
+Use Spacer Box(Size(x,y)) with 0 as x or y to "force" specific sized windows
+
+Use Column properties to "recode" values without changing original values, change specific values to "missing" without changing them in data and so on.
+
+To get unique values in column prefer Summarize of Associative Array() << Get Keys because Summarize() is way faster
+  Summarize(dt, uniqValues=by(:Colname)); //gets unique values from dt datatable Colname column and saves them to uniqValues variable
+  uniqValues = Associative Array(Column(dt, "Colname")) << Get Keys; //gets unique values from dt datatable Colname column and saves them to uniqValues variable
+  
+  
+  //Get the text between first brackets
+s1 = "123123(123): some text (12) (456)";
+s2 = Regex(s1, "(?<=\([0-9]*).*?(?=(\):*))");
+Write(s2);
+
+
+//Wrapping (leaves extra whitespace to end, should be easy to remove)
+s3 = "asdasdas aaaaaa ddd a a aaaaaaaaaaaaaaaaaaaaaaasdaasdada 13a";
+Regex(s3, "(?:((?>.{1,16}(?:(?<=[^\S\r\n])[^\S\r\n]?|(?=\r?\n)|$|[^\S\r\n]))|.{1,16})(?:\r?\n)?|(?:\r?\n|$))", "\1\!N", GLOBALREPLACE);
+
+
+
+Names Default To Here(1);
+command = "\[-c "import sys; print(sys.path)"]\";
+txt = Runprogram(executable("python"),options(command),readfunction("text"));
+txt = Substr(txt, 2, Contains(txt, "]")-2);
+sysPathPython = Items(regex(txt, "'", "", GLOBALREPLACE), ", ");
+Python Init(Init Trace( "TRUE" )), Python Sys Path(sysPathPython));
+
+Python Submit(
+    "\[
+try:
+    import numpy 
+    print ('Successfully imported!')
+except:
+    print ('Failed to import libraries!')
+]\"
+);
+Python Term();
+
+
+
+
+
+// codefolding CASE-SENSITIVE
+// https://www.jmp.com/support/help/en/15.0/?os=win&source=application#page/jmp/add-code-folding-markers.shtml#
+// Allow additional code folding keywords  must be set to 1 in preferences
+
+/* place to one of the following (take not of JMP version)
+C:/ProgramData/SAS/JMP/15/
+C:/ProgramData/SAS/JMP/
+C:/Users/<user>/AppData/Roaming/SAS/JMP/15/
+C:/Users/<user>/AppData/Roaming/SAS/JMP/
+C:/Users/<user>/Documents/
+*/
+{"If", "For", "For Each Row", "While", "Try", "New Window", "V List Box",
+"H List Box", "Function", "Panel Box", "Match", "Choose", "Associative Array", "Line Up Box",
+"New Namespace", "New Table", "Parse XML", "Eval Insert", "Open", "Open Database", 
+"Query", "New SQL Query"}

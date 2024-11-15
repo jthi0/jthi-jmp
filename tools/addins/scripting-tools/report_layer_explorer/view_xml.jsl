@@ -1,0 +1,42 @@
+Names Default To Here(1);
+
+cur_report = Current Report();
+If(!IsEmpty(cur_report),
+	cur_xml = cur_report << get xml;
+	If(!Contains(Get Window list() << Get Window Title, "View XML"),
+		sb = Script Box(cur_xml, "XML");
+		sb << show line numbers(1);
+		nw = New Window("View XML",  /*<<Language("XML"), */ << Size(1600, 1000),
+			V List Box(align("center"),
+				window:selection = Text Box("", << Font Color("Red")),
+				Panel Box("XML for '" || (cur_report << get window title) ||"'",
+					sb
+				)
+			)
+		);
+		nw << Set Dirty(0);
+	,
+		nw = Window("View XML");
+	);
+	nw << Bring Window To Front;
+);
+
+
+// not really that good, as we cannot select the lin
+sb = nw[Script Box(1)];
+If(!IsEmpty(sb),
+	sel_line = 0;
+	For Each({line, idx}, sb << Get Lines,
+		If(Contains(line, "selected=\!"true\!""),
+			sel_line = idx;
+			break();
+		);
+	);
+
+	If(sel_line,
+		is_dirty = sb << Is Dirty();
+		sb << Set Line text(sel_line, sb << get line text(sel_line));
+		sb << Set Dirty(is_dirty); // reset dirty status
+		nw:selection << Set Text("\[First 'selected = "true"' found from line: ]\" || Char(sel_line));
+	);
+);

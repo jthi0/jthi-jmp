@@ -1,0 +1,89 @@
+Names Default To Here(1);
+
+desc_statistics_anscombe = function({dt, x_col, y_col}, {Default Local},
+	// mean x/y, variance x/y, correlation, linear regression line, R^2
+	aa_statistics = Associative Array();
+	aa_statistics["mean_x"] = Col Mean(Column(dt, x_col));
+	aa_statistics["mean_y"] = Col Mean(Column(dt, y_col));
+	aa_statistics["sd_x"] = Col Std Dev(Column(dt, x_col));
+	aa_statistics["sd_y"] = Col Std Dev(Column(dt, y_col));
+
+	{Estimates, Std_Error, Diagnostics} = Linear Regression(dt[0, y_col], dt[0, x_col]);
+	aa_statistics["RegIntercept"] = Estimates[1];
+	aa_statistics["Regbeta"] = Estimates[2];
+	aa_statistics["RegrLineStr"] = Char(Estimates[1], , 2) || " + " || Char(Estimates[2], , 3) || "x";// we will round these
+	aa_statistics["RSquare"] = Diagnostics["RSquare"];
+	aa_statistics["Correlation"] = Correlation(dt[0, Eval List({x_col, y_col})])[2];
+	
+	return(aa_statistics);
+);
+
+create_statistics_table_anscombe = function({aa_quartet}, {Default Local},
+	tb = Table Box(
+		String Col Box("Statistic", {"Mean X", "Mean Y", "StdDev X", "StdDev Y", "Correlation", "Regr Line", "R^2"}),
+		scb = String Col Box("Value", {});
+	);
+	scb << Add Element(Char(aa_quartet["mean_x"]));
+	scb << Add Element(Char(aa_quartet["mean_y"],,2));
+	scb << Add Element(Char(aa_quartet["sd_x"],,3));
+	scb << Add Element(Char(aa_quartet["sd_y"],,3));
+	scb << Add Element(Char(aa_quartet["Correlation"],,3));
+	scb << Add Element(Char(aa_quartet["RegrLineStr"]));
+	scb << Add Element(Char(aa_quartet["RSquare"],2));
+	
+	return(tb);
+);
+
+create_gb_anscombe = function({dt, x_col, y_col}, {Default Local},
+	gb = Eval(EvalExpr(dt << Graph Builder(
+		Size(400, 350),
+		Show Control Panel(0),
+		Show Legend(0),
+		Variables(X(Expr(Eval(x_col))), Y(Expr(Eval(y_col)))),
+		Elements(Points(X, Y, Legend(3))),
+		SendToReport(
+			Dispatch({}, Expr(x_col), ScaleBox, {Min(3.5), Max(20), Inc(2), Minor Ticks(0)}),
+			Dispatch({}, Expr(y_col), ScaleBox, {Min(3.5), Max(13.5), Inc(1), Minor Ticks(0)}),
+			Dispatch({}, "400", ScaleBox, {Legend Model(3, Properties(0, {Line Color(6), Transparency(0)}, Item ID(Expr(y_col), 1)))}),
+			Dispatch({}, "Graph Builder", FrameBox, {Marker Size(6), Marker Drawing Mode("Normal")})
+		)
+	)));
+	
+	framebox = Report(gb)[frame box(1)];
+	framebox << Add Graphics Script(
+		Pen Color("blue");
+		Pen Size(2);
+		Y Function(3.00 + 0.5 * x, x); // we can hardcode this here
+	);
+	return(gb);
+);
+
+vlb_anscombe = function({dt_anscombe, aa_anscombe}, {Default Local},
+	vlb = V List Box(align("center"),
+		H List Box(align("center"),
+			Text Box("Anscombe's Quartet", << Set Font Size(18)),
+			Button Box("Wikipedia", Web("https://en.wikipedia.org/wiki/Anscombe's_quartet"), << Underline Style(1))
+		),
+		Lineup Box(N Col(2),
+			Lineup Box(N Col(2),
+				create_gb_anscombe(dt_anscombe, "X1", "Y1"),
+				create_statistics_table_anscombe(aa_anscombe["quartet1"])
+			),
+			Lineup Box(N Col(2),
+				create_gb_anscombe(dt_anscombe, "X2", "Y2"),
+				create_statistics_table_anscombe(aa_anscombe["quartet2"])
+			),
+			Lineup Box(N Col(2),
+				create_gb_anscombe(dt_anscombe, "X3", "Y3"),
+				create_statistics_table_anscombe(aa_anscombe["quartet3"])
+			),
+			Lineup Box(N Col(2),
+				create_gb_anscombe(dt_anscombe, "X4", "Y4"),
+				create_statistics_table_anscombe(aa_anscombe["quartet4"])
+			)
+		)
+	);
+	return(vlb);
+);
+
+Write();

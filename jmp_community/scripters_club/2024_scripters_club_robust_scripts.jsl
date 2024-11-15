@@ -1,0 +1,1053 @@
+﻿/*""" Building robust and fail-safe scripts
+
+Author: jthi
+Creation Date: 2024-08-21
+Creation JMP Version: JMP Pro 18.0.1
+
+This might end up with more like "tips for JSL" than about building robust and fail-save scripts
+Big part of understanding about how to build robust (and fail-safe) scripts is about undertanding
+JMP, JSL and programming in general (and software design/development).
+
+
+REMEMBER that we can always continue the discussion in the JMP community after the session recording and material has been posted.
+
+
+Some good topics from JMP Community from JMP developers
+	Better JSL Smoother Migration: How To Fix Your Own Code​ 
+		Web("https://community.jmp.com/t5/Learning-Center/Better-JSL-Smoother-Migration-How-To-Fix-Your-Own-Code/ta-p/537424", JMP Window);
+	Most Common JSL Mistakes and How to Avoid Them
+		Web("https://community.jmp.com/t5/Discovery-Summit-Americas-2020/Most-Common-JSL-Mistakes-and-How-to-Avoid-Them-2020-US-30MP-571/ta-p/281519", JMP Window);
+	 Next-Level Automation Using JSL Scripting 
+		Web("https://community.jmp.com/t5/Mastering-JMP/Next-Level-Automation-Using-JSL-Scripting/ta-p/636826", JMP Window);
+	 The (other) 5th thing I wish I knew when I started scripting: How to package things up
+		Web("https://community.jmp.com/t5/JMPer-Cable/The-other-5th-thing-I-wish-I-knew-when-I-started-scripting-How/ba-p/276585", JMP Window);
+	Steal This Code! Three Upgrades for Scripts Obtained from the Enhanced Log 
+		Web("https://community.jmp.com/t5/Discovery-Summit-Americas-2021/Steal-This-Code-Three-Upgrades-for-Scripts-Obtained-from-the/ta-p/398700", JMP Window);
+"""*/
+
+/*
+#NOTE
+These are my personal opinions. I do not work for JMP and I have not studied programming, besides few basic courses.
+So these can contain bad practices or incorrect guidelines/information.
+
+Also most of my scripts have to be still able to support JMP17 (and in somecases JMP16) so I do not utilize all
+the possible features of JMP17 and JMP18
+*/
+
+
+/*
+#NOTE: As the LLM are (still) hot thing, understand that they are currently (in my opinion)
+horrible at JSL. They try to provide you with all different languages outside of JSL (mostly javascript)
+and if it manages to provide you with JSL it might be using fairly weird code with possible mistakes.
+If you utilize LLM to write (most of) your code, I would suggest you comment which model you used as it
+makes it easier to understand why something looks like what it does without extra guessing
+(there are some clear signs if JSL was only written by LLM models)
+*/
+
+
+Names Default To Here(1);
+stop(); // to prevent script from running to end while still adding here scope
+
+
+// Robust -> doesn't break that easily for example when table name changes or something is missing
+// Fail-safe -> catch and manage errors/issues
+// I won't cover how you "should" split your script into different files, that is up to you
+// as this isn't about application architecture or design
+
+
+/* Tip 1 - Start your scripts ALWAYS with Names Default To Here(1); */
+Names Default To Here(1);
+
+// This will force all the unqualified variables to go to here scope (basically a local scope for this script)
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/advanced-scoping-and-namespaces.shtml#ww438526", JMP Window);
+// "It is recommend that all production scripts start with Names Default To Here(1) unless there is a specific reason not to do so."
+// Personally I'm not really sure what could be a specific reason to not start your script with Names Default To Here(1).
+
+
+
+/* Tip 2 -  DO NOT leave these to your production scripts */
+// These will most likely break (all) the scripts that are currently in use in your JMP session
+Delete Symbols(); // removes all symbols
+Clear Symbols(); // clears all symbols
+Delete Globals(); // removes all symbols which belong to global scope
+Clear Globals(); // clears those 
+// clearing means that they do still exist, but just have empty/missing values
+
+
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/show-symbols-clear-symbols-and-delete-symbols.shtml", JMP Window);
+
+// Consider also not leaving Clear Log() to your production scripts, especially those which are included into other scripts
+Clear Log(); 
+
+// Utilize these only for debugging
+
+
+
+/* Tip 3 -  Figure out programming style which you follow */
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/jsl-syntax-rules.shtml#", JMP Window);
+// Makes it much easier to come back to your script later
+// In best case whole company follow same style and it is easier for everyone to read the code
+
+// 3.1 Utilize intendation -> Improves readability
+// From Preferences you can set "Use Tabs" and tab width (I have "Use tabs" enabled tab width 4 (spaces))
+For(i = 1, i <= 3, i++,
+	For(j = 1, j <= 3, j++,
+		Write("\!Ni=", i, " j=",j);
+	);
+);
+// vs
+For(i = 1, i <= 3, i++,
+For(j = 1, j <= 3, j++,
+Write("\!Ni=", i, " j=",j);
+);
+);
+// or even
+For(i = 1, i <= 3, i++, For(j = 1, j <= 3, j++, Write("\!Ni=", i, " j=",j);););
+
+// 3.2 Use meaningful variablenames
+// Having meauningful variablenames makes it much easier to understand what the variable
+// is doing and/or referencing to/storing. 
+//Avoid single letter variablenames
+s = "LOT1233";
+// vs
+wafer_lot = "LOT1233"; // immediately obvious from variablename this is referencing to some wafer_lot
+
+// Common abbrevations, dt, gb, expr,...
+t = Open("$SAMPLE_DATA/Big Class.jmp");
+// vs
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+// For "booleans" (0 or 1) I tend to use something like is_something
+// this basically immediately tells me what 1 means
+is_table = 1; // or table_exists = 1;
+// instead of
+table = 1;
+
+something_exists = 1;
+can_something = 0;
+
+// for "globals" (in this globals mean something which shouldn't be changed) I use all UPPERCASE
+WINDOW_NAME = "MYAPP";
+
+
+// and for everything else I use snake_case
+dt_subset;
+my_str;
+
+// there are (atleast) two exceptions for this namespaces and classes for which I use PascalCase
+Define Class("CustomGraphBuilder");
+Namespace("MyRecall");
+
+
+// My functions tend to relate to doing something
+create_graph = function({}, {Default Local});
+// instead of
+graph = function({}, {Default Local});
+
+
+
+
+// Do not use variable names which could conflict with existing JMP keywords or function names
+mean = function({}, return("ABC"));
+//calculate_mean_of_lots = ...;
+// The user-defined function "Mean" conflicts with the JMP function "Mean". 
+// Use a scoped reference (for example, Global:Mean or Here:Mean) to call your user-defined function. 
+// Other uses of "Mean" in your script source will continue to call the JMP function. Function({}, Return("ABC"
+
+
+
+// 3.3 Create a style guide for yourself
+// I loosely follow Googles Python Style Guide for JSL
+Web("https://google.github.io/styleguide/pyguide.html", JMP Window);
+
+// For example my functions look something like this
+function1 = function({param1, param2, param3 = .}, {Default Local},
+	/*"""function1 which returns missing.
+	
+	More description regarding the function
+	
+	Args:
+		param1 (displaybox): 
+		param2 (char): 
+		param3 (num): 
+	
+	Returns:
+		num: missing
+	
+	Raises:
+		exception_msg
+	"""*/
+	
+	return(.);
+);
+
+
+// 3.4 Do not comment excessively but still comment
+// You generally do not need to comment what something is doing in code
+// Basically if you would have to explain something to someone, it is better to comment it
+// (why vs what)
+
+// Okayish comment:
+// get references to all y-axis (skip first index as it is x-axis) 
+// so we can manipulate them at the same time
+fb[2::N Items(fb)::2];
+
+
+// Bad comment (it is obvious what is happening)
+// Open Data Table: Big Class.jmp
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+
+// But there could be something extra behind this when a comment could be useful such as:
+// It is necessary to have table open with "name" column for application to work
+// as it checks for it when UI is loaded so we utilize JMP's Big Class sample data table
+// Table is closed immediately after UI has loaded
+
+
+// 3.5 Write your scripts in English use English variable names
+// Makes it much easier for everyone to read the code and it will be much easier
+// to ask for help as everyone can understand the code and variable names
+
+onko_henkilo = 1;
+minun_muuttujani = "abc";
+tulos = 123;
+dt_yhteenveto = dt << Summary();
+// Alustetaan matriisi, koska jos se luodaan etukäteen, sen täyttäminen on nopeampaa
+m = J(N Rows(dt, 1), .);
+
+
+is_person = 1;
+my_var = "abc";
+result = 123;
+dt_summary = dt << Summary();
+// Initialize matrix as filling it is faster if it has the size predetermined
+m = J(N Rows(dt, 1), .);
+
+
+
+
+/* Tip 4 - Improving JMP created scripts */
+// This is most likely the most important tip
+// Mostly means that you should always utilize references and sometimes clean the script JMP creates
+// as they can be overly complicated
+// I have small example which has been created using Enhanced log. It opens table, creates a summary table,
+// closes original table, creates a graph builder which uses Page and changes the y-axis slightly
+
+/*
+line 212: I would mention that you can use log and workflow as a reference and then alter the code to your programming stile. 
+This is specially the case when I ask non-programming user to make a workflow of what they want to achieve with the script 
+I should program for them. So I have a good understanding on what the want and have most of the function already coded.
+*/
+
+// Script from Enhanced Log
+
+// Open Data Table: Big Class.jmp
+// → Data Table("Big Class")
+Open("$SAMPLE_DATA/Big Class.jmp");
+
+// Data table summary
+// → Data Table("Summary of Big Class grouped by age, sex")
+Data Table("Big Class") << Summary(
+	Group(:age, :sex),
+	Mean(:height),
+	Freq("None"),
+	Weight("None"),
+	statistics column name format("column"),
+	Link to original data table(0),
+	output table name("Summary of Big Class grouped by age, sex")
+);
+
+
+// Close Data Table: Big Class
+Close(Data Table("Big Class"), NoSave);
+
+
+// Report snapshot: Summary of Big Class grouped by age, sex - Graph Builder
+Data Table("Summary of Big Class grouped by age, sex") <<
+Graph Builder(
+	Size(525, 2948),
+	Show Control Panel(0),
+	Variables(X(:sex), Y(:height), Page(:age)),
+	Elements(Bar(X, Y, Legend(5))),
+	SendToReport(
+		Dispatch({}, "height", ScaleBox,
+			{Min(0), Max(68.171127176781), Inc(10), Minor Ticks(0)}
+		),
+		Dispatch({}, "height", ScaleBox(2),
+			{Min(0), Max(68.171127176781), Inc(10), Minor Ticks(0)}
+		)
+	)
+);
+
+// My issues with this
+// No Names Default To Here(1);
+// Not utilizing references
+// Totally excessive commenting
+	// If you have a function called Open() and you are opening .jmp file
+	// it is obvious that you are opening data table
+// Also usually modifying those SendToReport parts can be very difficult 
+// so it is better to do it via some other method
+
+
+// Script from Workflow builder
+
+Names Default To Here(1);
+
+
+Workflow 9=function({}, 
+    step_name = "Open Data Table: Big Class.jmp";
+    //Open Data Table: Big Class.jmp
+    Open("$SAMPLE_DATA/Big Class.jmp");
+
+    step_name = "Data table summary";
+    //Data table summary
+    Data Table("Big Class") << Summary(
+    	Group(:age, :sex),
+    	Mean(:height),
+    	Freq("None"),
+    	Weight("None"),
+    	statistics column name format("column"),
+    	Link to original data table(0),
+    	output table name("Summary of Big Class grouped by age, sex")
+    );
+
+    step_name = "Close Data Table: Big Class";
+    //Close Data Table: Big Class
+    Close(Data Table("Big Class"), NoSave);
+
+    step_name =
+"Report snapshot: Summary of Big Class grouped by age, sex - Graph Builder";
+    //Report snapshot: Summary of Big Class grouped by age, sex - Graph Builder
+    Data Table("Summary of Big Class grouped by age, sex") <<
+    Graph Builder(
+    	Size(525, 2948),
+    	Show Control Panel(0),
+    	Variables(X(:sex), Y(:height), Page(:age)),
+    	Elements(Bar(X, Y, Legend(5))),
+    	SendToReport(
+    		Dispatch({}, "height", ScaleBox,
+				{Min(0), Max(68.171127176781), Inc(10), Minor Ticks(0)}
+    		),
+    		Dispatch({}, "height", ScaleBox(2),
+    			{Min(0), Max(68.171127176781), Inc(10), Minor Ticks(0)}
+    		)
+    	)
+    );
+);
+Workflow 9();
+
+// Slightly different, but still bad
+
+// My version would be something like this
+Names Default To Here(1);
+
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+dt_summary = dt << Summary(
+	Group(:age, :sex),
+	Mean(:height),
+	Freq("None"),
+	Weight("None"),
+	statistics column name format("column"),
+	Link to original data table(0),
+	output table name("Summary Table")
+);
+
+Close(dt, No Save);
+
+gb = dt_summary << Graph Builder(
+	Size(525, 2948),
+	Show Control Panel(0),
+	Variables(X(:sex), Y(:height), Page(:age)),
+	Elements(Bar(X, Y, Legend(5)))
+);
+
+// Change Y-axis for only first two y-axes
+abs = Report(gb) << XPath("//AxisBox");
+abs[2::4::2] << Max(68.171127176781);
+
+// If I would go a bit further I would move some or all the columns into variables
+// and use Eval() inside the graph builder
+xcol = "sex";
+pagecol = "age";
+ycol = "height";
+gb = dt_summary << Graph Builder(
+	Size(525, 2948),
+	Show Control Panel(0),
+	Variables(X(Eval(xcol)), Y(Eval(ycol)), Page(Eval(pagecol))),
+	Elements(Bar(X, Y, Legend(5)))
+);
+// Note that my Y-axis scaling would still work even if the ycol was "weight"
+// As it isn't dependent on the column name at all (compare with the Dispatch messages)
+
+
+// Recode example
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+// JMP created recode script
+// Recode column: age
+Local({dt},
+	dt = Data Table("Big Class");
+	dt << Begin Data Update;
+	For Each Row(
+		dt,
+		dt:age[] = Map Value(
+			dt:age,
+			{12, 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6},
+			Unmatched(dt:age)
+		)
+	);
+	dt << End Data Update;
+);
+
+// My modified version
+// My version (no need for local, or "double" referencing dt)
+// we could basically keep the rest
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+dt << Begin Data Update;
+For Each Row(dt,
+	dt:age[] = Map Value(
+		dt:age,
+		{12, 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6},
+		Unmatched(dt:age)
+	)
+);
+dt << End Data Update;
+
+// Utilizing Begin Data Update + End Data Update with For Each Row is almsot necessary
+// as it will speed up the table update a lot in the end as it prevents display updating
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/data-table-messages.shtml?os=win&source=application#ww2014593", JMP Window);
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/data-table-messages.shtml?os=win&source=application#ww1547361", JMP Window);
+// Note
+// Begin Data Update does not affect the data refresh due to some other table manipulations. 
+// For example, when you delete or add columns, the data table is updated and then the data update begins.
+
+
+
+
+// In normal scripts which use tables which have been opened
+// you should never have to use Current Data Table() (there are few exceptions)
+// it is too common to see scripts like this
+Names Default To Here(1);
+
+Open("$SAMPLE_DATA/Big Class.jmp");
+dt = Current Data Table(); 
+// or
+Open("$SAMPLE_DATA/Big Class.jmp");
+dt = Data Table("Big Class");
+// or
+dt = Data Table("Big Class");
+//when you could just use which will always work
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+
+Open Database("asdas");
+dt = Current Data Table(); 
+//vs
+dt = Open Database("asdas");
+
+
+// most of the functions will return a reference, do not forget to utilize it!
+// there is one exception for me to this and it is user-interfaces
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+dt_subset = dt << Subset(All Rows, Columns("name"));
+show(dt_subset);
+dt_subset2 = dt << Subset(All Rows, Columns("age"));
+show(dt_subset2); // JMP will add extra number at the end, much easier to just use reference without guessing names
+
+
+Get Data Table List(); // oldest table is last
+
+
+// Always add Output Table() when you create new tables using << Subset, << Summary, << Join and so on
+// it will make debugging much easier
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+dt_summary = dt << Summary(
+	Group(:age, :sex),
+	Mean(:height),
+	Freq("None"),
+	Weight("None"),
+	statistics column name format("column"),
+	Link to original data table(0)
+	// , output table name("mean height by age and sex")
+);
+
+
+// Also remember to always close windows (<< Close Window;)
+nw << Close Window;
+// and datatables after you are done with them
+Close(dt, no save);
+
+
+// And if you don't need to see the window/table/report
+// create/open them as invisible or private as it will save some memory and is generally faster
+// JUST REMEMBER TO STILL CLOSE THEM
+dt = Open("$SAMPLE_DATA/Big Class.jmp", invisible);
+dt_subset = dt << Subset(All Rows, Selected Columns(0), Output table("My Subset"), private);
+Close(dt, No save);
+Close(dt_subset, No save);
+
+
+// You can open platforms as invisible
+dist = dt << Distribution(Continuous Distribution(Column(:height), Process Capability(0)), Invisible);
+// extract values WITHOUT drawing it and close it
+dt_quantiles = Report(dist)[Outlinebox("Quantiles"), Table Box(1)] << Make Into Data Table;
+// dist << Close Window;
+
+
+/* Tip 5 - Use functions and expressions to reduce code duplication */
+// If there are tasks you perform multiple times, you should always consider
+// creating function or expression to perform the task as it removes duplication.
+// This means if there is any problem, you will only have to fix it in one place
+
+// Example prefix column name with table name
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+Column(dt, 1) << Set Name((dt << get name) || "_" || (Column(dt, 1) << get name));
+Column(dt, 2) << Set Name((dt << get name) || "_" || (Column(dt, 2) << get name));
+Column(dt, 3) << Set Name((dt << get name) || "_" || (Column(dt, 3) << get name));
+
+// Note: I'm using column name instead of column reference (like I always do)
+prefix_column_with_tablename = function({dt, colname}, {Default Local},
+	Column(dt, colname) << Set Name("AAA" || (dt << get name) || "_" || colname);
+);
+
+prefix_column_with_tablename(dt, "height");
+prefix_column_with_tablename(dt, "weight");
+
+
+// With expression (I usually save this type of expressions to user-interfaces)
+prefix_with_tablename = Expr(
+	Column(dt, colidx) << Set Name((dt << get name) || "_" || (Column(dt, colidx) << get name));	
+);
+
+colidx = 1;
+Eval(prefix_with_tablename);
+colidx = 2;
+Eval(prefix_with_tablename);
+colidx = 3;
+Eval(prefix_with_tablename);
+
+
+
+/* Tip 6 - Print and log when necessary */
+// Printing, logging, stack
+// Cleanest way to print is top use Write
+my_string = "\["ABCD"]\";
+Write(my_string); // will not add anything
+Write("\!Nabc",my_string, 123);
+Write("\!N");
+
+Print(my_string); // will add quotes and row change (and escapes)
+Print("abc", my_string, 123);
+Write("\!N");
+
+
+Show(my_string); // will show also the variable name
+Show("abc", my_string, 123);
+Write("\!N");
+
+// You can print to log but do not print too much (especially in loops) as it can slow down your scripts a lot
+Get Log(); // returns a list of items in the log
+lc = Log Capture(show(1)); // will capture the log into a variable (or just ignore if you don't store it to a variable)
+Write(); // to avoid print
+
+// Logging
+// You will have to write your own function/library/class for this
+Save Text File(); // append/replace modes
+// Things to consider for logger
+/*
+Usually I would try to capture (at minimum): timestamp, level of log and message
+
+Level of logging:
+	debug - only used for debugging purposes on debug mode
+	info - informative messages about the code
+	warning - potential issues
+	error - errors which do not cause application to fail but still require attention
+	critical- CRITICAL errors which cause the application to fail or shutdown
+
+Consider:
+	Format of your logs (special characters in .csv for example)
+	What you should log
+	How large log files you should have
+	How many log files you should have
+		For example logging script I use splits the file after specific size and creates new file
+		and at somepoint start overwriting from the oldest
+		and by maximum it usually keeps 3 files
+	Should you print the messages also to JMP log?
+*/
+
+
+/* Tip 7 - Utilize path variables if possible */
+// These are much more robust than trying to build them yourself
+// Most useful ones for scripting applications are
+// $TEMP, $DESKTOP, $DOCUMENTS but there are many more
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/path-variables.shtml", JMP Window);
+Get Path Variable("JMP_HOME");
+Convert File Path("$JMP_HOME", windows);
+
+Open("$SAMPLE_DATA" || "Big Class.jmp"); // note the trailing slash
+Open("$SAMPLE_DATA/" || "Big Class.jmp"); // note the trailing slash
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+
+// You can also have your own path variables
+Set Path Variable("SCRIPTERS_CLUB", "C:\temp");
+Get Path Variable("SCRIPTERS_CLUB");
+Convert File Path("$SCRIPTERS_CLUB", windows);
+
+
+/* Tip 8 - Be careful with missing, empty, 0 items and so on values */
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/specific-element-types.shtml#", JMP Window);
+var = .;
+var2 = "";
+l = {};
+m = [];
+Delete Symbols(dt);
+
+var == .;
+Is Missing(var);
+Is Missing(var2);
+Is Missing(dt);
+Is Missing(l);
+Is Missing(m);
+
+Is Empty(var);
+Is Empty(var2);
+Is Empty(dt);
+Is Empty(l);
+Is Empty(m);
+
+// Is list empty
+N Items(l) == 0;
+N Items(m) == 0;
+
+// Example where you can go very easily wrong with missing values
+// checking if value is between limits
+specs = {{., 10}, {0, 10}, {0, .}, {., .}};
+
+// 1 < 2
+// 1 < .
+
+For Each({spec}, specs,
+	Show(spec[1] <= 1 <= spec[2]);
+);
+// So have separate checks for missing values or use some other methods to handle these
+
+
+/* Tip 9 - Use Try-catch and Throw() */
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/throw-and-catch-exceptions.shtml#", JMP Window);
+// You can capture errors using Try
+Try(dt2
+,  // handle exception
+	Show(exception_msg);
+);
+
+
+// You can create your own exceptions using Throw(), it will also stop the script execution
+Throw("Error occured."); // note that these can behave in different manner if you Throw inside add-in
+Write("\!NWill not print");
+
+
+
+/* Tip 10 - Utilize data structures */
+// do not try to create variable names dynamically with Parse()
+// JMP has a list -> utilize that to store the values
+// for example, to open all files in a folder, you can add those to a list and then use them from there
+jmpfiles = Filter Each({filename}, Files In Directory("$SAMPLE_DATA"), Ends With(filename, ".jmp"));
+jmpfiles = Left(jmpfiles, 10);
+
+
+dts = {};
+For Each({filename}, jmpfiles,
+	Insert Into(dts, Open("$SAMPLE_DATA/" || filename, Invisible));
+);
+show(dts);
+
+For Each({dt}, dts,
+	Close(dt, no save);
+);
+
+Web("https://community.jmp.com/t5/Discussions/Incorrect-alignment-of-checkboxes-on-the-user-interface/m-p/770241", JMP Window);
+// Separatte check box example // NOT THE BEST SHOWCASE AS YOU CAN JUSE LIST WITHJ CHECKBOX
+// You can collect references as you create them
+cb_collector = V List Box();
+cb_refs = {};
+For(i = 1, i <= 20, i++,
+	cb_collector << Append(cb = Check box(char(i)));
+	Insert Into(cb_refs, cb);
+);
+
+nw = New Window("",
+	cb_collector
+);
+
+// You can also get references now to a list using xpath
+cbs = cb_collector << XPath("//CheckBoxBox");
+
+show(cb_refs << get items, cbs << get items);
+
+
+
+
+// Other very good data structure for this type of tasks is associative array
+// NOTE: keys are in alphabetical order
+aa_dts = Associative Array();
+For Each({filename}, jmpfiles,
+	aa_dts[filename] = Open("$SAMPLE_DATA/" || filename, Invisible);
+);
+show(aa_dts);
+// N Rows(aa_dts["Abrasion.jmp"]);
+
+For Each({{filename, dt_ref}}, aa_dts,
+	Close(dt_ref, no save);
+);
+
+// So there is never need for something like this
+dt_str = "";
+For(i = 1, i <= N Items(jmpfiles), i++,
+	filepath = "$SAMPLE_DATA/" || jmpfiles[i];
+	dt_str ||= Eval Insert("dt^i^ = Open(\!"^filepath^\!", Invisible);\!N");
+);
+Parse(dt_str);
+//Eval(Parse(dt_str));
+
+
+/* Tip 11 - Avoid hard-coding if there is a possibility that something could change */
+// You have variables so utilize them
+// Instead of 
+dt = Open("$SAMPLE_DATA/Semiconductor Capability.jmp");
+ps = dt << Process Screening(Process Variables(:NPN1, :PNP1, :PNP2, :NPN2));
+
+
+// Do something like
+process_cols = {"NPN1", "PNP1", "PNP2", "NPN2"};
+ps = dt << Process Screening(Process Variables(Eval(process_cols)));
+
+
+// Or 
+process_cols = dt << Get Column Names("Continuous", "String");
+use_robust = 1;
+ps = dt << Process Screening(
+	Process Variables(Eval(process_cols)),
+	Use Medians instead of Means(use_robust)
+);
+
+	
+
+/* Tip 12 - Scopes and names */
+// Read about valid names
+// If your name breaks the rules, you will have to use "name"n syntax
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/jsl-rules-for-names.shtml#ww258186", JMP Window);
+// Names are resolved in specific order
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/rules-for-name-resolution.shtml#ww515661", JMP Window);
+
+// Local, Here, Global
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/jsl-rules-for-names.shtml%23ww258186", JMP Window);
+
+// Named and anonyous namespaces are stored in global scope -> can be used to share variables across scripts
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/jsl-rules-for-names.shtml%23ww258186", JMP Window);
+
+
+// anonymous
+ns = New Namespace({a = 1});
+ns << Get Name;
+show(ns);
+
+// named
+ns2 = New Namespace("myname", {b = 2});
+ns2 << get name;
+show(Namespace("myname"));
+
+// will easily get overwritten
+New Namespace("myname", {c = 3});
+show(Namespace("myname"));
+show(ns2);
+
+// to avoid this utilize !Namespace Exists()
+If(!Namespace Exists("myname"),
+	ns = New Namespace("myname", {a = 1});
+,
+	ns = Namespace("myname");
+);
+
+// Limit scope of your functions (read from scripting guide for more)
+a1 = function({a},
+	b = a * 2;
+	return(b);
+);
+show(a1(10), b); // b escaped from inside
+
+
+a2 = function({a}, {Default Local},
+	c = a*2;
+	return(c);
+);
+show(a2(20), c); // c is local to a2
+
+
+a3 = function({a}, {d},
+	d = a*2;
+	return(d);
+);
+show(a2(20), d); // d is local to a3, this is more explicit
+
+
+
+// There are some predefined scopes
+// Global, Here, Builtin, Local, Local Here, Window, Platform, Box
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/rules-for-name-resolution.shtml%23ww515661", JMP Window);
+
+// scopes in UI
+nw = New Window("abc",
+	window:a = 1;
+	window:b = "b";
+	V List Box(
+		Text Edit Box("abc"),
+		Button Box("OK",
+			Show(window:a, window:b);
+		)
+	),
+	Context Box(
+		box:a = "1";
+		Button Box("OK CB1",
+			show(box:a);
+		)
+	),
+	Context Box(
+		box:a = "2";
+		Button Box("OK CB2",
+			show(box:a);
+		)
+	)
+);
+nw:b = "c";
+
+// "this"
+// This just refers to itself and can be very helpful as you don't need to store the reference
+// as this "knows" it
+nw = New Window("a",
+	Button Box("Button Name", << Set Function(Function({this},
+		show(this << Get Button Name);
+	))),
+	btn2 = Button Box("My Button", << Set Function(Function({this},
+		show(this == btn2);
+	)))
+);
+
+
+
+/* Tip 13 - Keep dates as dates and try to convert dates stored as strings to datenum */
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/date-and-time-functions.shtml#", JMP Window);
+// Datetime values are handled internally as numbers of seconds since midnight, January 1, 1904.
+
+// Do not rely that JMP is able to recognize your date format
+// Format them into numbers in such a way that JMP is able to recognize them
+// all of these are directly valid datenums
+01Aug2024;
+01Aug2024:00:00:00;
+01Aug2024 + 0;
+3805315200;
+
+
+Format(Today(), "YYYY-MM-DD"); // will return a string so you cannot use this for calculations
+Informat("2024-08-17", "YYYY-MM-DD"); // can convert strings into datenum
+// Most robust method (in my opinion) is to utilize format pattern (outside of building date from parts)
+In Format("2024.08.17", "Format Pattern", "<YYYY><-><MM><-><DD>");
+In Format("2024.08.17 13:00:05", "Format Pattern", "<YYYY><-><MM><-><DD> <hh24><::><mm><::><ss>");
+
+
+// Getting rid of time
+Today() - Time Of Day(Today());
+Date Increment(Today(), "day", 0, "start");
+
+
+// Compare dates
+Date Difference(01Aug2024, Today(), "day", "start");
+
+
+
+/* Tip 14 - Sometimes you have to wait for operations to finish */
+// I don't know of any situations where you would have to define specific time to wait
+// so try using wait(0); if necessary (usually you don't even need this) it will wait as long as is needed
+wait(0);
+wait(); // This will use default x which is 3 (three second of wait)
+
+// for formulas use << Run formulas; (wait(0); won't be enough)
+dt << Run formulas;
+//dt << Rerun Formulas;
+
+// There is also << Inval; << Update Window; 
+
+
+/* Tip 14 - If you don't want to ask for permission at least ask for forgiveness */
+// Search for: look before you leap, easier to ask forgiveness than permission
+
+// ask for forgiveness rather than permission
+Try(Close(dt, no save)); // close dt if it is open and if it doesn't exist, doesn't do anything
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+// look before you leap
+If(!Is Empty(dt),
+	Close(dt, no save);
+);
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+
+
+
+/* Tip 15 - Start collecting useful snippest/scripts somewhere (version control) */
+// You can find some code from JMP community
+Web("https://community.jmp.com/t5/JMP-Scripts/tkb-p/scripts", JMP Window);
+Web("https://community.jmp.com/t5/JSL-Cookbook/tkb-p/jmp-scripting", JMP Window);
+// I have small collection of all sorts of small snippets and larger scripts in version control
+// These contain useful functions like progress bars, creating utility modal windows, information windows
+// I also have my own addin "Script Editor Snippes" which allows me to quickly insert JSL to script editor
+	// https://community.jmp.com/t5/JMP-Add-Ins/JMP-Script-Editor-Snippets/tac-p/778480
+#snip
+
+
+
+/* Tip 16 - Learn how to find robust references from report layer */
+// I consider using XPath to be the most robust especially when you combine it with report subscripting
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+gb = dt << Graph Builder(
+	Variables(X(:weight), Y(:height), Overlay(:sex)),
+	Elements(Points(X, Y, Legend(9)), Line Of Fit(X, Y, Legend(11)))
+);
+
+// these are helpful when looking for the most robust option for a reference
+gb << Get XML;
+gb << Show Properties; 
+// new window("", << type("script"), <<language("XML"), gb << get xml);
+// JMP platforms do nowadays have "helpKey" thing
+gb_ob = Current Report() << XPath("//OutlineBox[@helpKey='Graph Builder']"); // usually helpKey attribute is fairly robust
+If(N Items(gb_ob) > 0,
+	gb_ob = gb_ob[1];
+);
+gb_ref = gb_ob << Get Scriptable Object; // can get access to the graph builder object and not just the outline box
+gb_ref << Remove Variable(1, 1);
+
+Web("https://community.jmp.com/t5/JMP-Scripters-Club-Discussions/Session-7-Scope-Properties-and-Report-Layer/m-p/649136", JMP Window);
+
+
+
+
+dt = open("$SAMPLE_DATA/Big Class.jmp");
+
+Column(dt, "height") << Set Property("Detection Limits", {60, 100});
+
+dist = dt << Distribution(
+	Stack(1),
+	Continuous Distribution(
+		Column(:height),
+		Horizontal Layout(1),
+		Vertical(0),
+		Process Capability(0),
+		Fit Normal
+	)
+);
+nw = new windoW("", << type("Script"), << Language("XML"), dist << get xml);
+obs = Report(dist) << XPath("//OutlineBox[@helpKey='FitDistributions']");
+show(obs << get title);
+// Or
+ob = Report(dist)[OutlineBox("Fitted Normal Distribution?")];
+show(ob << get title);
+// Or
+obs2 = Report(dist) << XPath("//OutlineBox[contains(text(), 'Fitted Normal Distribution')]");
+show(ob << get title);
+
+
+/* Tip 18 - Utilize For Each, Filter Each and Transform Each instead of For */
+// Generally these are faster and easier to read than For()
+// They can be more difficult to debug though
+// And then there is the fun "bug" which almost makes these unusable in some cases
+// You can read about that from 
+Web("https://community.jmp.com/t5/Discussions/Issue-with-Function-default-local-and-Each-functions/td-p/701264", JMP Window);
+// (no idea when or if it will be even fixed)
+my_list = {"a", 1, "b", 2, "c"};
+aa = ["a" => 1, "b" => 3, "c" => 4, "d" => 5];
+
+For Each({my_item}, my_list,
+	Show(my_item);
+);
+//vs
+For(i = 1, i <= N Items(my_list), i++,
+	Show(my_list[i]);
+);
+For(i = 1, i <= N Items(my_list), i++,
+	my_item = my_list[i];
+	Show(my_item);
+);
+
+For Each({{key, value}}, aa,
+	Write("\!Nkey=", key, ", value=", value);
+);
+//vs
+aa_keys = aa << get keys;
+For(i = 1, i <= N Items(aa_keys), i++,
+	Write("\!Nkey=", aa_keys[i], ", value=", aa[aa_keys[i]]);
+);
+aa_keys = aa << get keys;
+For(i = 1, i <= N Items(aa_keys), i++,
+	key = aa_keys[i];
+	Write("\!Nkey=", key, ", value=", aa[key]);
+);
+
+
+/* Tip 19 - Learn about expression evaluation */
+Web("https://community.jmp.com/t5/JSL-Cookbook-Archived/Insert-one-expression-into-another-using-Eval-Insert-Eval-Expr/ta-p/48998", JMP Window);
+
+
+
+
+
+
+
+/* Some more tips which I won't cover here */
+
+/* Always use proper version control */
+// Git, SVN, ...
+
+/* Create useful libraries such as (logger, information window, information modal window, progress bar, stack, ...) */
+
+/* Be careful with floating point math */
+Web("https://0.30000000000000004.com/", JMP Window);
+Show(0.1 + 0.2, 0.1 + 0.2 == 0.3);
+
+/* Understand that when JMP updates there can be breaking changes */
+// Platform structure might change, JMP might change some inner functionalities, ...
+
+/* If you want to do unit testing, you can use something like JSL-Hamcrest */
+Web("https://github.com/sassoftware/jsl-hamcrest", JMP Window);
+
+
+/* There can be issues with multilanguage use of JMP */
+// This has improved a lot since JMP15/JMP16
+
+
+// More random rambling about logs
+/*
+
+You could create a function which writes to a log file
+Usually I would try to capture (at minimum): timestamp, level of log and message
+I usually use following as logging levels:
+	debug - only used for debugging purposes on debug mode
+	info - informative messages about the code
+	warning - potential issues
+	error - errors which do not cause application to fail but still require attention
+	critical- CRITICAL errors which cause the application to fail or shutdown
+
+Things to consider in the logging function (or library might be better)
+	Format of your logs (special characters in .csv for example)
+	What you should log
+	How large log files you should have
+	How many log files you should have
+	For example logging script I use splits the file after specific size and creates new file
+	and by maximum it usually keeps 3 files
+	Should you print the messages also to JMP log?
+*/
+Write();

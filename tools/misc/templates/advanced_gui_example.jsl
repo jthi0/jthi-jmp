@@ -1,0 +1,232 @@
+Names Default To Here(1);
+
+//utility functions
+mini_modal_window = function({title, text, text_icon = "BlankIndex", window_icon = "NewApplication"}, {Default Local},
+	New Window(title, <<modal, << show toolbars(0), << show menu(0),
+		H List Box(
+			Icon Box(text_icon), 
+			Spacer Box(size(10, 1)), 
+			V Center Box(Text Box(text))
+		),
+		<< Set Window Icon(window_icon)
+	);
+);
+
+load_settings = function({default_settings = Associative Array(), settings_file_name = "settings.json"}, {Default Local},
+	If(File Exists(settings_file_name),
+		settings = Load Text File("settings.json", JSON),
+		settings = default_settings;
+	);
+	return(settings);
+);
+
+move_window = function({nw}, {Default Local},
+	nw << Show Window(0);
+	Try(
+		cur_window_pos = Current Window() <<Get Window Position();
+		cur_window_size = Current Window() <<Get Window Size();
+		nw << move window(
+			cur_window_pos[1] + cur_window_size[1] / 2 - (nw << Get Window Size)[1] / 2,
+			cur_window_pos[2] + cur_window_size[2] / 2 - (nw << Get Window Size)[2] / 2
+		);
+	);
+	nw  << Bring Window To Front;
+	nw << Show Window(1);
+);
+
+check_open_window = function({window_title, show_modal = 0}, {Default Local},
+	If(Contains(Get Window List() << get window title, window_title),
+		If(show_modal,
+			mini_modal_window("Window already open", 
+				"Window " || window_title || " already open.\!NBringing to front.",
+				"WinInformation",
+				"Warning"
+			);
+		);
+		move_window(Window(window_title));
+		stop();
+	);
+);
+
+check_data_tables = function({}, {Default Local},
+// this might need something additional, because sometimes JMP opens some weird invisible tables
+	If(N Items(Get Data Table List()) == 0,
+		mini_modal_window("Error", "No datatables open", text_icon = "Error", window_icon = "ErrorSmall");
+		stop();
+	);
+	return(Eval List({Current Data Table(), Get Data Table List()}));
+);
+
+// check for datatables
+{dt, dt_list} = check_data_tables();
+
+
+// initialize values
+//
+
+//input_validator
+//run_expr
+
+window_title = "Test";
+window_icon = "BlankIndex";
+
+recreate_clb = function({clb_ref, dt_ref = Current Data Table()}, {Default Local},
+	new_clb = Eval(EvalExpr(Col List Box(Datatable(Expr(dt_ref)))));
+	new_clb << Set Min Items(clb_ref << Get Min Items);
+	new_clb << Set Max Items(clb_ref << Get Max Items);
+	new_clb << Set Max Selected(clb_ref << Get Max Selected);
+	new_clb << Modeling Type(clb_ref << Get Modeling Type);
+	new_clb << Set Data Type(clb_ref << Get Data Type);
+	new_clb << Set N Lines(clb_ref << Get N Lines);
+
+	return(new_clb);
+);
+
+recreate_fcs = function({fcs_ref, dt_ref = Current Data Table()}, {Default Local},
+	fcs_ref = (nw << XPath("//FilterColSelectorBox"))[1];
+	fcs_ref << get xml
+
+fcs_ref << Get Max Selected
+fcs_ref << Get N Lines
+
+nw << get xml
+
+	new_flc = Eval(EvalExpr(Filter Col Selector(Datatable(Datatable(Expr(dt_ref))))));
+	new_flc << Set Max Selected(fcs_ref << Get Max Selected);
+	new_flc << Modeling Type(fcs_ref << Get Modeling Type);
+	new_flc << Set Data Type(fcs_ref << Get Data Type);
+	new_flc << Set N Lines(fcs_ref << Get N Lines);
+
+	new window("",
+		new_flc
+	);
+	return(new_flc);
+);
+
+FilterColSelectorBox
+IfBox
+
+update_col_list_selectors = Expr(
+	// THIS IS HIGHLY DEPENDANT ON YOUR APPLICATION
+	
+	flc = (nw << XPath("//ListBoxBox"))[1];
+	flc << Clone Box();
+	clb = (nw << XPath("//ListBoxBox"))[2];
+	
+	// clb has at least these properties
+
+	//FilterColSelectorBox
+	
+//	ListBoxBox // no way to recognize col list boxes?
+	
+
+	// get filter col selectors
+	// get col list selectors
+	// rebuild them with new table...
+	
+);
+
+// this will need annoying filter col.. and so on deletion selection due
+current_table_element = Expr(
+	Border Box(Sides(15), H Center Box(H List Box(align("center"),
+		Text Box("Current Data Table: "),
+		btn_current = Button Box(dt << get name, << Set Menu Items(dt_list << get name),
+			<< Set Menu Choice(Contains(dt_list << get name, dt << get name)),
+			<< Set Function(function({this}, 
+				this << Set Button Name((this << Get Menu Items)[this << Get Menu Choice]);
+				Current Data Table(Data Table((btn_current << Get Menu Items)[btn_current << Get Menu Choice]));
+			)),
+			<< Set Tip("Current Data Table")
+		),
+		Button Box("", Current Data Table() << Bring Window To Front,
+			<<Set Icon("ActivateDataTable"),
+			<< Set Tip("View Current Data Table")
+		),
+		Button Box("", << Set Script(
+				btn_current << Set Menu Items(Get Data Table List() << get name);
+				btn_current << Set Button Name((btn_current << Get Menu Items)[btn_current << Get Menu Choice]);
+				Current Data Table(Data Table((btn_current << Get Menu Items)[btn_current << Get Menu Choice]));
+			),
+			<< Set Icon("Refresh"),
+			<< Set Tip("Refresh Data Table List and Current Data Table")
+		)
+	)
+)));
+
+options_element = Expr(
+	Panel Box("Options",
+		Lineup Box(N Col(2),
+			Text Box("Suffix"),
+			Text Edit Box(""),
+			Text Box("Keep dialog open"),
+			Check Box({""}, <<Set(0))
+		)
+	)
+);
+
+clear_selection_element = Expr(
+	Button Box("Clear Selections",
+		<< Set Function(function({this}, 
+			(((btn << top parent) << XPath("//PanelBox[text()='Cast Selected Columns']"))[1] << XPath("//ListBoxBox")) << Clear Selection;
+		)),
+		<< Set Icon("Clear"),
+		<< Set Icon Location("Left")
+	);
+);
+
+remove_selected_element = Expr(
+	btn = Button Box("Remove Selected",
+		<< Set Function(function({this}, 
+			(((btn << top parent) << XPath("//PanelBox[text()='Cast Selected Columns']"))[1] << XPath("//ListBoxBox")) << Remove Selected;
+		)),
+		<< Set Icon("ErrorSmall"),
+		<< Set Icon Location("Left")
+	);
+);
+
+actions_element = Expr(
+	Panel Box("Actions",
+		H List Box(
+			Button Box("Run",
+				run_expr;
+			),
+			Button Box("Close",
+				Current Window() << Close Window;
+			)
+		)
+	)
+);
+
+nw = New Window(window_title, << show toolbars(0), << show menu(0), <<Set Window Icon(window_icon),
+	V List Box(align("right"),
+		current_table_element,
+		H List Box(
+			V List Box(
+				Panel Box("Select Columns", flc = Filter Col Selector(dt, nlines(10), << Continuous(0))),
+				((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+				options_element
+			),
+			Panel Box("Cast Selected Columns",
+				Lineup Box(N Col(2),
+					Button Box("Group By",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(3), << Modeling Type({"Nominal", "Ordinal"})),
+					Button Box("Concat",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(3)),
+					Unlineup Box(H Center Box(H List Box(
+						clear_selection_element,
+						remove_selected_element
+					)))
+				)
+			)
+		),
+		actions_element
+	)
+);

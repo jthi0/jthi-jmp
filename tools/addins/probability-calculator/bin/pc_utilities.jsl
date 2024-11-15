@@ -1,0 +1,36 @@
+Names Default To Here(1);
+
+mini_modal_window = function({title, text, text_icon = "BlankIndex", window_icon = "NewApplication"}, {Default Local},
+	/*""" Show simple modal window to user
+	
+	Args:
+		title (str): Title of the modal window
+		text (str): Text to display to user
+		text_icon (str): Icon displayed next to text
+		window_icon (str): Window icon
+	
+	Returns:
+		num: 1 if user pressed OK and 0 if user pressed cancel / cross
+	Raises:
+		exception_msg
+	"""*/
+	nw = New Window(title, <<modal, << return result, << show toolbars(0), << show menu(0), << Set Window Icon(window_icon),
+		H List Box(
+			Panel Box("Message",
+				H List Box(
+					Icon Box(text_icon), 
+					Spacer Box(size(10, 1)), 
+					V Center Box(Text Box(text, << Set Wrap(300)))
+				)
+			),
+			Spacer Box(Size(10, 0)),
+			Panel Box("Actions",
+				Lineup Box(N Col(1),
+					Button Box("OK"),
+					Button Box("Cancel")
+				)
+			)
+		)
+	);
+	return(nw["Button"]);
+);

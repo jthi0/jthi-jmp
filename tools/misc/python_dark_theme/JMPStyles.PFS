@@ -1,0 +1,63 @@
+﻿//*** Generated Text, Editing this incorrectly may risk not being able to start JMP ***
+Styles(
+	Dark(
+		Python(
+			Default Enabled(
+				Foreground Color({248, 248, 242}),
+				Background Color({12, 16, 33})
+			),
+			Default Disabled(),
+			Comment(
+				Foreground Color({117, 113, 94})
+			),
+			Comment Blocks(
+				Foreground Color({117, 113, 94})
+			),
+			Number(
+				Foreground Color({230, 219, 116})
+			),
+			String(
+				Foreground Color({230, 219, 116})
+			),
+			Decorators(
+				Foreground Color({230, 219, 116})
+			),
+			Quoted string(
+				Foreground Color({230, 219, 116})
+			),
+			Triple Quotes(
+				Foreground Color({230, 219, 116})
+			),
+			Triple Double Quotes(
+				Foreground Color({230, 219, 116})
+			),
+			Keyword(
+				Foreground Color({78, 201, 176})
+			),
+			Identifiers(
+				Foreground Color({220, 220, 220})
+			),
+			Operators(
+				Foreground Color({220, 220, 220})
+			),
+			Line Number(
+				Foreground Color({220, 220, 220}),
+				Background Color({12, 16, 33})
+			),
+			EOL(
+				Foreground Color({220, 220, 220}),
+				Background Color({12, 16, 33})
+			),
+			Brace Light(
+				Foreground Color({204, 221, 255}),
+				Background Color({14, 69, 131})
+			),
+			Bad Brace(
+				Background Color({107, 4, 3}),
+				Foreground Color({221, 221, 221})
+			)
+		)
+	)
+)
+
+

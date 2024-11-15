@@ -1,0 +1,149 @@
+Names Default To Here(1);
+
+ColumnQuickSwap:delete_variables_for_role = function({report, role}, {Default Local},
+	all_variables = report << get variables;
+	For Each({variable}, all_variables,
+		colname = Arg(variable, 1) << get name;
+		Try(
+			Eval(EvalExpr(
+				report << Remove Variable({Expr(NameExpr(AsColumn(colname))), Role(Expr(role)), Position(1)})
+			));
+		);
+	);
+	all_variables = report << get variables;
+	For Each({variable}, Reverse(all_variables), // sometimes these get swapped so this is lazy solution for that
+		colname = Arg(variable, 1) << get name;
+		Try(
+			Eval(EvalExpr(
+				report << Remove Variable({Expr(NameExpr(AsColumn(colname))), Role(Expr(role)), Position(1)})
+			));
+		);
+	);	
+);
+
+ColumnQuickSwap:add_variables_for_role = function({report, columns, role, combine_mode}, {Default Local},
+	For Each({colname, idx}, columns,
+		If(combine_mode == "Separated",
+			Eval(EvalExpr(
+				report << Add Variable({Expr(NameExpr(AsColumn(colname))), Role(Expr(role)), Position(Expr(pos))});
+			));
+		, 
+			Eval(EvalExpr(
+				report << Add Variable({Expr(NameExpr(AsColumn(colname))), Role(Expr(role)), Position(1), Combine(Expr(combine_mode))});
+			));
+		)
+	);
+);
+
+ColumnQuickSwap:update_report_role = function({cur_report, cur_cols, cur_role, combine_mode}, {Default Local},
+	cur_report << inval;
+	ColumnQuickSwap:delete_variables_for_role(cur_report, cur_role);
+	ColumnQuickSwap:add_variables_for_role(cur_report, cur_cols, cur_role, combine_mode);
+	cur_report << update window;
+	wait(0);	
+);
+
+
+ColumnQuickSwap:add_new_columns = Function({dt, clb_ref}, {Default Local},
+/*""" Adds new columns to Column Filter
+	
+	More description regarding the function
+	
+	Args:
+		dt (Data Table): Reference to the data table column list box is using
+		clb_ref (Col List Box): reference to column list box containing the columns
+	
+	Returns:
+		1 on success, 0 if cancelled
+	
+	Raises:
+		exception_msg
+	"""*/
+
+	nw = New Window("Column Filter", << modal,
+		V List Box(align("center"),
+			Panel Box("Choose columns to add",
+				fcs = Filter Col Selector(Datatable(dt)),
+			),
+			Panel Box("Actions",
+				Lineup Box(N Col(2),
+					Button Box("OK",
+						selections = fcs << get selected;
+						, << Set Icon("DebuggerRunWithoutBreakpoints"),
+					),
+					Button Box("Cancel", << Set Icon("DebuggerStop"))
+				)
+			)
+		),
+		, << Set Window Icon("ListItemAdd")
+	);
+	
+	If(nw["Button"] != 1,
+		return(0);
+	);
+	
+	clb_ref << Append(selections);
+	
+	return(1);
+);
+
+ColumnQuickSwap:remove_columns = function({clb_ref}, {Default Local},
+	clb_ref << Remove Selected;
+);
+
+ColumnQuickSwap:move_columns = function({clb_ref, direction}, {Default Local},
+	all_items = clb_ref << Get Items;
+	sel_items = clb_ref << Get Selected;
+	
+	If(direction == "Swap",
+		item_order = Transform Each({sel_item}, sel_items,
+			Contains(all_items, sel_item)
+		);
+		new_order = all_items;
+		new_order[item_order] = Reverse(sel_items);
+	,
+		start_idx = Contains(all_items, sel_items[1]); // set based first found item
+		new_list = Filter Each({cur_item}, all_items, !Contains(sel_items, cur_item));
+		
+		new_idx = If(direction == "Up",
+			start_idx - 1;
+		, direction == "Down",
+			start_idx + 1
+		,
+			start_idx
+		);
+		new_order = Insert(new_list, sel_items, new_idx);
+	);
+	
+	clb_ref << Set Items(new_order);
+	
+	all_items = clb_ref << Get Items;
+	For Each({cur_item}, sel_items,
+		new_idx = Contains(all_items, cur_item);
+		clb_ref << Set Selected(new_idx, 1, Run Script(0));
+	);
+);
+
+ColumnQuickSwap:filter_column_selection = function({clb_ref, context_ref, filter_str = ""}, {Default Local},
+	filter_str = lowercase(filter_str);
+	
+	all_items = context_ref:column_selection;
+	orig_sel = clb_ref << Get Selected;
+	
+	If(!IsMissing(filter_str),
+		cols_to_show = Filter Each({item}, all_items,
+			Contains(lowercase(item), filter_str) | Contains(orig_sel, item);
+		);
+	,
+		cols_to_show = all_items;
+	);
+	
+	clb_ref << Set Items(cols_to_show);
+	
+	For Each({item}, orig_sel,
+		idx = Contains(cols_to_show, item);
+		clb_ref << Set Selected(idx, 1, Run Script(0));
+	)
+);
+
+Write();

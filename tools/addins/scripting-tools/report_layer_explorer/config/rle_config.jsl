@@ -1,0 +1,21 @@
+﻿/*""" Config for Report Layer Explorer
+
+Author: jthi
+Creation Date: 2023-12-22
+Creation JMP Version: JMP Pro 17.2
+
+Description: 
+
+Todo:
+    * 
+    * 
+	
+"""*/
+
+Names Default To Here(1);
+
+XML_TAG_PATTERN = "(<\w+|</\w+|/>)";
+TREE_WIDTH = 500;
+TREE_HEIGHT = 600;
+
+Write();

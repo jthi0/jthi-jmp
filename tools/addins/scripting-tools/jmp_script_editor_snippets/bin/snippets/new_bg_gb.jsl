@@ -1,0 +1,9 @@
+Names Default To Here(1); 
+
+dt = open("$SAMPLE_DATA/Big Class.jmp");
+
+gb = dt << Graph Builder(
+	Variables(X(:weight), Y(:height), Overlay(:sex)),
+	Elements(Points(X, Y, Legend(9)), Line Of Fit(X, Y, Legend(11)))
+);
+

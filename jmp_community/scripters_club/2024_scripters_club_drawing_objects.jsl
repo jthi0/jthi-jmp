@@ -1,0 +1,665 @@
+﻿/*""" Drawing Graphical Elements
+
+Author: jthi
+Creation Date: 2024-10-16
+Creation JMP Version: JMP Pro 18.0.1
+
+REMEMBER that we can always continue the discussion in the JMP community after the session recording and material has been posted.
+
+https://www.jmp.com/support/help/en/18.0/#page/jmp/scripting-graphs.shtml#
+
+https://www.jmp.com/support/help/en/18.0/#page/jmp/graphics-functions.shtml#
+
+*/
+
+/*
+#NOTE
+These are my personal opinions. I do not work for JMP and I have not studied programming, besides few basic courses.
+So these can contain bad practices or incorrect guidelines/information.
+*/
+
+Names Default To Here(1);
+stop(); // to prevent script from running to end while still adding here scope
+
+
+// Graphic scripts are scripts which will be added inside a frame utilizing << Add Graphics Script
+obj << Add Graphics Script( <"Back" | "Front" | position>, <Description("name")>, <Scale IDs(XID, YID)>, script);
+
+// These can be used to draw inside the frame
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+gb = dt << Graph Builder(
+	Show Control Panel(0),
+	Variables(X(:weight), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+Report(gb)[FrameBox(1)] << Add Graphics Script(
+	Rect(80, 55, 130, 70);
+);
+
+// Or trigger actions
+Report(gb)[FrameBox(1)] << Add Graphics Script(
+	Caption("Hi!: " || Char(N Items((Current Data Table() << get selected rows))))
+);
+
+// These graphic scripts can be very trigger happy
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+gb = dt << Graph Builder(
+	Show Control Panel(0),
+	Variables(X(:weight), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+fb = Report(gb)[FrameBox(1)];
+::i = 0;
+fb << Add Graphics Script(
+	Show(::i++);
+); // will trigger immediately after adding it
+
+// And when selecting any values
+
+
+// Sometimes it will trigger even if nothing is being selected and you just move mouse in the graph
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+biv = dt << Bivariate(Y(:weight), X(:height), FitLine);
+::j = 0;
+Report(biv)[FrameBox(1)] << Add Graphics Script(
+	Transparency(0.5);
+	Fill Color({1.0, 0.5, 0.0});
+	Polygon([60, 72, 57], [75, 120, 120]);
+	show(::j++);
+);
+
+
+// Demo - Utilizing triggering
+// I do not suggest you use this as I would consider this horrific user experience
+// Force window size and prevent user from changing it
+Web("https://community.jmp.com/t5/Discussions/Preventing-New-Window-from-being-maximized-resized/m-p/801318#M97692", JMP Window);
+
+nw = New Window("Example", <<size(200, 200),
+	gb = Graph Box(Frame Size(1, 1)), // Create "fake" graph
+	box = V Splitter Box( // random report
+		Size(640, 480),
+		H Splitter Box(
+			Spacer Box(<<Set Fill(1); <<Color(RGB Color(9, 112, 84));),
+			Spacer Box(<<Set Fill(1); <<Color(RGB Color(255, 222, 0));)
+		),
+		H Splitter Box(
+			Spacer Box(<<Set Fill(1); <<Color(RGB Color(101, 153, 255));),
+			Spacer Box(<<Set Fill(1); <<Color(RGB Color(255, 153, 0));)
+		)
+	)
+);
+(gb << Xpath("//AxisBox")) << visibility("Collapse"); // Hide stuff from graph box
+
+Eval(EvalExpr( // force zooming to the window (returns original size at least in this case) on any trigger
+	gb[FrameBox(1)] << Add Graphics Script(
+		Expr(nw) << Zoom Window;
+	);	
+));
+
+
+
+// It is important to utilize expression evaluation with graphic scripts WHEN necessary
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+gb = dt << Graph Builder(
+	Show Control Panel(0),
+	Variables(X(:weight), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+Summarize(dt, ages = By(:age), mheights = Max(:height));
+fb = Report(gb)[FrameBox(1)];
+
+
+For(i = 1, i < N Items(mheights), i++,
+	fb << Add Graphics Script(
+		H Line(mheights[i]); // we will only get the last one multiple times
+	);
+);
+
+For Each({mh}, mheights, // won't work as mh is in For Each local scope
+	fb << Add Graphics Script(
+		V Line(mh);
+	)
+);
+
+// Evaluate. 
+// You can either evaluate them when adding the values
+For Each({mh}, mheights, // won't work as mh is in For Each local scope
+	Eval(EvalExpr(fb << Add Graphics Script(
+		H Line(Expr(mh));
+	)));
+);
+
+// Or evaluate a variable inside graphic script
+Eval(EvalExpr(
+	fb << Add Graphics Script(
+		vals = Expr(mheights);
+		For(i = 1, i <= N Items(vals), i++,
+			H Line(vals[i])
+		);
+	);
+));
+
+// Some examples of importance of evaluation from community
+Web("https://community.jmp.com/t5/JMP-Knowledge-Base/How-to-add-a-Graphics-Script-using-a-variable-within-a-For-loop/ta-p/575408", JMP Window);
+Web("https://community.jmp.com/t5/Discussions/adding-graphic-to-a-graph-box-using-a-for-loop/td-p/279733", JMP Window);
+Web("https://community.jmp.com/t5/Discussions/Adding-amp-Removing-Graphics-Scripts/td-p/57420", JMP Window);
+
+
+
+// Position matters in graphic scripts
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+gb = dt << Graph Builder(
+	Show Control Panel(0),
+	Variables(X(:weight), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+
+Report(gb)[FrameBox(1)] << Add Graphics Script(
+	Fill Color("Gray");
+	Rect(80, 55, 150, 60, 1);
+);
+Report(gb)[FrameBox(1)] << Add Graphics Script( // will be drawn on top
+	Fill Color("Blue");
+	Rect(80, 55, 130, 70, 1);
+);
+
+
+Report(gb)[FrameBox(1)] << Add Graphics Script("Back", // but you can send it to back, front
+	Fill Color("Blue");
+	Rect(80, 55, 130, 70, 1);
+);
+Report(gb)[FrameBox(1)] << Add Graphics Script(4, // or specific position
+	Fill Color("Blue");
+	Rect(80, 55, 130, 70, 1);
+);
+
+// Don't forget about transparency
+Report(gb)[FrameBox(1)] << Add Graphics Script("Front",
+	Fill Color("Blue");
+	Transparency(0.5);
+	Rect(80, 55, 130, 70, 1);
+);
+
+
+// Some graphic functions
+V Line(); // line from at x, from y1 to y2 OR across entire frame
+H Line();// line from at y, from x1 to x2 OR across entire frame
+
+
+// Edges of the frame
+X Origin(); // Left edge of graphic frame
+X Range(); // x distance from left to right (X Origin() + X Range() is right edge)
+Y Range(); // Same for Y
+Y Origin(); // Same for Y
+
+
+// Drawing with functions and dimensions
+XY Function();
+Y Function();
+X Function();
+
+// Interactive 
+Drag Line();
+Drag Polygon();
+Drag Rect();
+Drag Text();
+
+
+// And some interactive ones
+// Handle(); // can be annoying to utilize as creates small marker you can move around
+// has dragging script and mouse up script (mouse up optional)
+nw = New Window("Example",
+	exx = 20;
+	exy = 50;,
+	gb = Graph Box(
+		Frame Size(200, 200),
+		Handle(
+			exx,
+			exy,
+			exx = x;
+			exy = y;
+			Caption("DRAGGING");
+		,
+			Caption("UP");
+		);
+		Circle({0, 0}, Sqrt(exx * exx + exy * exy));
+	)
+);
+
+// Mousetrap(); // maybe the more interesting one but can also more difficult to use
+// Has dragging and mouse up script (mouse up optional)
+nw = New Window("Example",
+	exx = 20;
+	exy = 50;,
+	Graph Box(
+		Frame Size(200, 200),
+		Mousetrap(
+			exx = x;
+			exy = y;
+			Caption("MOUSE HELD");
+		,
+			Caption("MOUSE RELEASED at " || Eval Insert("(^exx^,^exy^)"));
+		);
+		Circle({0, 0}, Sqrt(exx * exx + exy * exy));
+	)
+);
+
+// Outside of scope for this session, Mouse Box()
+// Separate display box element which isn't added to a frame but can do JSL callbacks for mouse actions
+Mouse Box();
+
+
+// Figuring out x-axis
+// https://community.jmp.com/t5/Discussions/How-can-I-annotate-the-background-with-different-colors-across/m-p/804663/highlight/true#M98242
+
+// Continuous x-axis is simple but nominal/ordinal gets complicated (and can get even more so with groups)
+Names Default To Here(1);
+
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+gb = dt << Graph Builder(
+	Variables(X(:weight), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+Report(gb)[FrameBox(1)] << Add Graphics Script(
+	Transparency(0.5);
+	Fill Color("Gray");
+	Rect(100, Y Origin() + Y Range(), 120, Y Origin(), 1);
+);
+
+
+// Add rectangle between ages 13 and 15
+Names Default To Here(1);
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+gb = dt << Graph Builder(
+	Variables(X(:age), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+Report(gb)[FrameBox(1)] << Add Graphics Script(
+	Transparency(0.5);
+	Fill Color("Gray");
+	Rect(13, Y Origin() + Y Range(), 15, Y Origin(), 1); 
+);
+// Where is our rectangle? it is outside of frame as we do not have continuous X-axis
+Report(gb)[FrameBox(1)] << Add Graphics Script(
+	Transparency(0.5);
+	Fill Color("Gray");
+	Rect(1, Y Origin() + Y Range(), 3, Y Origin(), 1); 
+);
+//13 = 1 and 3 = 15, how? Check axis settings and Label
+// NOTE: THAT THIS IS ONE OF THE PLACES WHERE JMP USES ZERO INDEXING
+
+// Well how we can figure that out with script? Summary table is one option
+dt_summary = dt << Summary(
+	Group(:age),
+	Freq("None"),
+	Weight("None"),
+	Link to original data table(0),
+	private
+);
+order = dt_summary[0, 1];
+Close(dt_summary, no save);
+
+Eval(EvalExpr(
+	Report(gb)[FrameBox(1)] << Add Graphics Script(
+		Transparency(0.5);
+		Fill Color("Red");
+		Rect(Expr(Contains(order, 15) - 1), Y Origin() + Y Range(), Expr(Contains(order, 17) - 1), Y Origin(), 1); 
+	);
+));
+// Sometimes you might want to +-/0.5 depending where you wish to have your graphic
+
+// Note that this "coloring" can sometimes be done by utilizing range and reference lines
+// And of course this can be scripted using << Add Ref Line
+gb << dt = Graph Builder(
+	Variables(X(:age), Y(:height)),
+	Elements(Points(X, Y, Legend(3))),
+	SendToReport(
+		Dispatch({}, "age", ScaleBox,
+			{Add Ref Line({2, 5}, "Solid", "Dark Cyan", "", 1, 0.25)}
+		)
+	)
+);
+
+
+// NOTE2: This labeling scheme isn't always the same which is extremely annoying
+// and can be complicated to utilize
+// In some platforms it is based on the amount of items + order
+// You can still utilize Summary
+ow = dt << Oneway(Y(:height), X(:sex));
+dt_summary = dt << Summary(
+	Group(:sex),
+	Freq("None"),
+	Weight("None"),
+	Link to original data table(0),
+	private
+);
+order = dt_summary[0, 0];
+// If we want to have marking from middle of F to middle of M
+// it is half of F and F + half of M
+Report(ow)[AxisBox(2)] << Add Ref Line(
+	{order[1][2]/2, order[1][2] + (order[2][2])/2}, "Solid", "Dark Cyan", "", 1, 0.2
+);
+
+Report(ow)[AxisBox(2)] << Add Ref Line(
+	order[1][2]/2, "Solid", "Red", "F MIDDLE", 2, 1
+);
+Report(ow)[AxisBox(2)] << Add Ref Line(
+	order[1][2] + (order[2][2])/2, "Solid", "Red", "M MIDDLE", 2, 1
+);
+
+
+// Display Segs can be very interesting as you can get values not easily accessible sometimes with them
+// or you can utilize them in other ways
+// To find which segments are available, use << Find Segs on framebox
+<< Find Segs;
+// To figure out what they really are, send << Class name to that list
+<< Class Name;
+// Finally you can use Find Seg to pick them
+<< Find Seg;
+// Or utilize indexing from the find segs result (I tend to use << Find Seg)
+
+// There are a lot of different segment types and they all have their own capabilities
+Marker Seg();
+Line Seg();
+Lines Seg();
+Pie Seg();
+Hist Seg();
+// find more from scripting index 
+
+
+// These capabilties can (annoyingly) be different in different platforms
+// MarkerSeg()
+// << Get Row Numbers doesn't work with Graph Builder
+// Graph Builder
+dt = Open("$SAMPLE_DATA/Big Class.jmp");
+
+gb = dt << Graph Builder(
+	Variables(X(:weight), Y(:height)),
+	Elements(Points(X, Y, Legend(3)))
+);
+fb = Report(gb)[FrameBox(1)];
+segs = fb << Find Segs();
+Show(segs << class name);
+ms = fb << Find Seg(Marker Seg(1));
+Show(ms << Get Row Numbers, ms << get x values, ms << get y values);
+
+// Bivariate
+biv = dt << Bivariate(Y(:height), X(:weight));
+fb = Report(biv)[FrameBox(1)];
+segs = fb << Find Segs();
+Show(segs << class name);
+ms = fb << Find Seg(Marker Seg(1));
+Show(ms << Get Row Numbers, ms << get x values, ms << get y values);
+
+
+
+// "Fixing" JMP18 issue with interactive HTML and area chart using segments
+// TS-00165047
+Names Default To Here(1);
+
+dt = New Table("JMP18 Area Demo",
+	Add Rows(25),
+	Compress File When Saved(1),
+	New Column("TRUNC_TIME",
+		Numeric,
+		"Continuous",
+		Format("d/m/y h:m:s", 22, 0),
+		Input Format("d/m/y h:m:s", 0),
+		Set Values(
+			[3809232000, 3809235600, 3809239200, 3809242800, 3809246400, 3809250000, 3809253600, 3809257200,
+			3809260800, 3809264400, 3809268000, 3809271600, 3809275200, 3809278800, 3809282400, 3809286000,
+			3809289600, 3809293200, 3809296800, 3809300400, 3809304000, 3809307600, 3809311200, 3809314800,
+			3809318400]
+			)
+	),
+	New Column("COUNTS",
+		Numeric,
+		"Continuous",
+		Format("Best", 12),
+		Set Values([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 300, 50, 0, 0, 0, 0, 0, 200, 100, 0])
+	)
+);
+
+nw = New Window("Demo",
+	H List Box(
+		Outline Box("",
+			gb = dt << Graph Builder(
+				Size(528, 454),
+				Show Control Panel(0),
+				Variables(X(:TRUNC_TIME), Y(:COUNTS)),
+				Elements(Area(X, Y, Legend(5)), Bar(X, Y, Legend(6))),
+				SendToReport(
+					Dispatch({}, "400", ScaleBox,
+						{Legend Model(5, Properties(0, {Transparency(1)}, Item ID("COUNTS", 1)))}
+					)
+				)
+			)
+		)
+	)
+);
+
+// Doesn't work as intended in interacative HTML
+nw << save interactive html("$TEMP/deleteme.html");
+Web("$TEMP/deleteme.html", JMP Window);
+
+// I create HIDDEN area chart, so I can utilize PolySeg it creates to create my own
+// using polygon (some other graphic element did have same issue as area chart so I went with polygon which seems to work)
+nw = New Window("Demo",
+	H List Box(
+		Outline Box("",
+			gb = dt << Graph Builder(
+				Size(528, 454),
+				Show Control Panel(0),
+				Variables(X(:TRUNC_TIME), Y(:COUNTS)),
+				Elements(Area(X, Y, Legend(5)), Bar(X, Y, Legend(6))),
+				SendToReport(
+					Dispatch({}, "400", ScaleBox,
+						{Legend Model(5, Properties(0, {Transparency(0)}, Item ID("COUNTS", 1)))}
+					)
+				)
+			)
+		)
+	)
+);
+
+// Get values from polyseg
+ps = (Report(gb)[framebox(1)] << find seg(Poly Seg(1)));
+xs = ps << get x values;
+ys = ps << get y values;
+
+// Add first and last values
+Insert Into(xs, xs[1], 1);
+Insert Into(xs, xs[N Items(xs)]);
+Insert Into(ys, 0, 1);
+Insert Into(ys, 0);
+
+// Fix our area chart using graphic script
+Eval(
+	Eval Expr(
+		Report(gb)[FrameBox(1)] << Add Graphics Script(
+			2,
+			Fill Color(52);
+			Transparency(0.2);
+			Polygon(Expr(xs), Expr(ys));
+		)
+	)
+);
+nw << Save Interactive HTML("$TEMP/JMP18_AREA.html");
+Web("$TEMP/JMP18_AREA.html", JMP Window);
+
+
+
+// Circles around markers
+Web("https://community.jmp.com/t5/Discussions/Making-Graph-Builder-s-quot-Size-quot-scale-to-axes/m-p/781682#U781682", JMP Window);
+
+Names Default To Here(1);
+
+dt = New Table("Untitled",
+	Add Rows(5),
+	Compress File When Saved(1),
+	New Column("SN", Numeric, "Continuous", Format("Best", 12), Set Values([1, 1, 1, 2, 2])),
+	New Column("X(cm)", Numeric, "Continuous", Set Values([2.2999999999999998, 2.7000000000000002, 1.5, 5.4000000000000004, 3.1000000000000001])),
+	New Column("Y(cm)", Numeric, "Continuous", Set Values([1.1499999999999999, 0.44, 2.6000000000000001, 1.8999999999999999, 4.0999999999999996])),
+	New Column("Diameter(cm)",
+		Numeric,
+		"Continuous",
+		Set Values([0.040000000000000001, 0.12, 0.34999999999999998, 0.17000000000000001, 0.58999999999999997])
+	)
+);
+
+gb = dt << Graph Builder(
+	Size(518, 454),
+	Show Control Panel(0),
+	Lock Scales(1),
+	Variables(X(:"X(cm)"n), Y(:"Y(cm)"n), Size(:"Diameter(cm)"n)),
+	Elements(Points(X, Y, Legend(5))),
+	Local Data Filter(Add Filter(columns(:SN), Modeling Type(:SN, Nominal)))
+);
+
+frame = Report(gb)[FrameBox(1)];
+
+Eval(EvalExpr(
+	frame << Add Graphics Script(
+		cur_gb = Expr(Report(gb));
+		fb = cur_gb[FrameBox(1)];
+		ms = fb << Find Seg(Marker Seg(1));
+		xs = ms << Get X Values;
+		ys = ms << Get Y Values;
+		For(i = 1, i <= N Items(xs), i++,
+			dt = cur_gb << Get Data Table;
+			m_rows = dt << Get Rows Where(:"X(cm)"n == xs[i] & :"Y(cm)"n);
+			diam = dt[m_rows, "Diameter(cm)"][1];
+			Circle({xs[i], ys[i]}, diam/2);
+		);
+	);	
+));
+
+
+// "Changing" colors in JMP reports in which you cannot do it by using Row Legend
+// Change color of compare means circles
+// Could maybe be made much more interesting by utilizing Value Colors column property OR pre-determined colors
+Web("https://community.jmp.com/t5/Discussions/Changing-colors-in-compare-means-analysis/m-p/801365#M97702", JMP Window);
+
+Names Default To Here(1);
+dt = open("$SAMPLE_DATA/Big Class.jmp");
+
+ow = dt << Oneway(Y(:height), X(:sex), Each Pair(1));
+
+fb = Report(ow)[FrameBox(2)];
+
+segs = fb << Find Segs();
+segs << Class Name;
+
+seg = fb << Find Seg(CustomStreamSeg(1));
+
+Eval(EvalExpr(
+	fb << Add Graphics Script(
+		circles = Expr(seg << get script);
+		colors = {"Red", "Blue"};
+		For(i = 1, i <= N Items(circles), i++,
+			Pen Color(colors[i]);
+			Pen Size(2);
+			Eval(circles[i]);
+		);
+	);	
+));
+
+// Change color of lines in Nonlinear platform
+Names Default To Here(1);
+Web("https://community.jmp.com/t5/Discussions/Change-color-of-fitted-line-in-Nonlinear/m-p/805066/highlight/true#M98305", JMP Window);
+
+dt = Open("$SAMPLE_DATA/Nonlinear Examples/US Population.jmp");
+obj = dt << Nonlinear(Y(:pop), X(:"X-formula"n), Finish());
+Eval(EvalExpr(
+	Report(obj)[FrameBox(1)] << Add Graphics Script(
+		p = Expr(Report(obj)[FrameBox(1)]);
+		Pen Color("Red");
+		f1 = (p << Find Seg(Top Seg(1))) << get script;
+		f2 = Arg(f1);
+		If(Head Name(f2) == "Y Function",
+			Eval(f2);
+		);
+	);	
+));
+
+Write();
+
+
+// adding ref lines to variability chart
+Web("https://community.jmp.com/t5/Discussions/Varying-spec-limits-by-data-category-in-variability-chart/td-p/723027", JMP Window);
+
+dt = New Table("variable_spec_limits_sample(2)",
+	Add Rows(12),
+	Compress File When Saved(1),
+	New Column("Phase", Character(7), "Nominal", Set Values({"Phase 1", "Phase 1", "Phase 1", "Phase 1", "Phase 1", "Phase 1", "Phase 1", "Phase 1", "Phase 2", "Phase 2", "Phase 2", "Phase 2"})),
+	New Column("SampleGroup", Character(5), "Nominal", Set Values({"AF145", "AF145", "AF145", "AF145", "AF145", "PT334", "PT334", "PT334", "ZF010", "ZF010", "ZF010", "ZF010"})),
+	New Column("Data", Numeric, "Continuous", Set Values([4, 4.1, 3.9, 4, 4.5, 3.8, 4, 4, 3.8, 3.6, 3.8, 3.7])),
+	New Column("LSL", Numeric, "Continuous", Set Values([3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.8, 3.4, 3.4, 3.4, 3.4])),
+	New Column("Target", Numeric, "Continuous", Set Values([4, 4, 4, 4, 4, 4, 4, 4, 3.6, 3.6, 3.6, 3.6])),
+	New Column("USL", Numeric, "Continuous", Set Values([4.2, 4.2, 4.2, 4.2, 4.2, 4.2, 4.2, 4.2, 3.9, 3.9, 3.9, 3.9]))
+);
+var = dt << Variability Chart(Y(:Data), X(:Phase, :SampleGroup));
+
+dt_summary = dt << Summary(
+	Group(:Phase),
+	Max(:LSL),
+	Mean(:Target),
+	Min(:USL),
+	N Categories(:SampleGroup),
+	Freq("None"),
+	Weight("None"),
+	statistics column name format("column"),
+	Link to original data table(0)
+);
+dt_summary << Delete Columns("N Rows");
+
+fb = Report(var)[Outline Box("Variability Chart for Data"), Frame Box(1)];
+
+xidx = 0;
+For(i = 1, i <= N Rows(dt_summary), i++,
+	curphase = dt_summary[i, "Phase"];
+	curlsl = dt_summary[i, "LSL"];
+	curusl = dt_summary[i, "USL"];
+	curtarget = dt_summary[i, "Target"];
+	curcount = dt_summary[i, "SampleGroup"];
+	
+	xend = xidx + curcount;
+	
+	lslstart = Eval List({xidx, curlsl});
+	lslend = Eval List({xend, curlsl});
+
+	uslstart = Eval List({xidx, curusl});
+	uslend = Eval List({xend, curusl});
+
+	targetstart = Eval List({xidx, curtarget});
+	targetend = Eval List({xend, curtarget});
+	
+	xidx = xend;
+	
+	Eval(EvalExpr(
+			fb << Add Graphics Script(
+			Pen Color("Red");
+			Pen Size(1);
+			Line(Expr(lslstart), Expr(lslend)); // {x1, y1}, {x2, y2}
+			Line(Expr(uslstart), Expr(uslend)); // {x1, y1}, {x2, y2}
+			Pen Color("Blue");
+			Line(Expr(targetstart), Expr(targetend)); // {x1, y1}, {x2, y2}
+		);
+	));
+);
+// Adding for Y-axis scaling is also generally good idea as these won't be scaled automatically
+// You can do this by finding the maximum between spec limits and the values shown
+// and then scale the y-axis using << Min and << Max
+
+// Other example for something similar 
+Web("https://community.jmp.com/t5/Discussions/different-spec-limits-on-a-variability-chart/td-p/565177", JMP Window);
+// And you can find more from community
+
+
+
+// Other graphic script examples, I suggest you check these out and search community for "Graphic script"
+Web("https://community.jmp.com/t5/Discussions/How-to-set-a-Reference-Line-on-each-page-with-Page-option-in/m-p/798527/highlight/true#M97446", JMP Window);
+Web("https://community.jmp.com/t5/Discussions/How-can-I-annotate-the-background-with-different-colors-across/m-p/800824", JMP Window);
+Web("https://community.jmp.com/t5/Discussions/How-to-get-exact-cumulative-Prob-at-specified-value-in-CDF-Plot/m-p/777203", JMP Window);

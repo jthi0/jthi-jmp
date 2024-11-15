@@ -1,0 +1,6 @@
+nw = New Window("name",
+	V List Box(align("Center"),
+		
+	)
+	, << Set Window Icon("JMP")
+);

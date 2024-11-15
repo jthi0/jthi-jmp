@@ -1,0 +1,75 @@
+Names Default To Here(1);
+
+Include("cf_util.jsl");
+Include("../config/cf_config.jsl");
+
+cb_update_initial_columns = function({this, idx}, {Default Local},
+	options = window:role_selections;
+	cur_role = options[idx];
+	cur_cols = get_role_columns(window:report, cur_role);
+	
+	all_options = window:fcs << get items;
+	window:fcs << Clear selection;
+	
+	For Each({item}, cur_cols,
+		window:fcs << Set Selected(Contains(all_options, item));
+	);
+);
+
+request_configuration = function({cur_report, cur_dt}, {Default Local},
+	aa_selections  = Associative Array();
+	
+	Eval(EvalExpr(
+		nw_column_filter = New Window(window_name, << modal, << return result,
+			window:report = cur_report;
+			window:dt = cur_dt;
+			window:role_selections = Expr(ROLE_SELECTIONS);
+			V List Box(align("right"),
+				Lineup Box(N Col(1),
+					Text Box("Select Role to Update"),
+					window:cb = Combo Box(window:role_selections, << Set Function(Function({this, idx}, cb_update_initial_columns(this, idx)))),
+					Spacer Box(Size(0, 10)),
+					//Text Box("Smart select combine scales"),
+					window:cb_smart_combine = Check Box({"Smart select combine scales"}, << Set Tip("Select initial scale combination based on column modeling type"), << Set All(1)),
+					Spacer Box(Size(0, 10)),
+					Text Box("Select swappable Columns"),
+					window:fcs = Filter Col Selector(Datatable(window:dt), << Set Height(400), << Set Width(300))
+				),
+				Spacer Box(Size(0, 10)),
+				Lineup Box(N Col(2),
+					Button Box("OK",
+						sel_role = window:cb << Get Selected;
+						ob_title = "Column Quick Swap (" || sel_role || "-axis)";
+						sel_cols = window:fcs << get selected;
+						initial_selections = cur_cols = get_role_columns(window:report, sel_role);
+						enable_smart_combine = window:cb_smart_combine << get;
+						
+						aa_selections["Role"] = sel_role;
+						aa_selections["Columns"] = sel_cols;
+						aa_selections["Title"] = ob_title;
+						aa_selections["Initial Columns"] = initial_selections;
+						aa_selections["Smart Combine"] = enable_smart_combine;
+						
+						, << Set Icon("DebuggerRunWithoutBreakpoints");
+					),
+					Button Box("Cancel", << Set Icon("DebuggerStop"))
+				)
+			)
+			, cb_update_initial_columns(window:cb, 1)
+			, << Set Window Icon(WINDOW_ICON);
+		);
+	));
+
+	
+	If(nw_column_filter["Button"] != 1,
+		Throw("User cancelled");
+	);
+	
+	If(N Items(aa_selections["Columns"]) < 1,
+		Throw("No columns selected");
+	);
+	
+	return(aa_selections);
+);
+
+Write();

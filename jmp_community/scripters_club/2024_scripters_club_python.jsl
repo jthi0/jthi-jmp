@@ -1,0 +1,735 @@
+Names Default To Here(1);
+
+stop(); // top prevent running script from start
+
+// I VERY STRONGLY RECOMMENDED READING THROUGH SCRIPTING GUIDE'S PYTHON SECTION IF YOU ARE GOING TO USE PYTHON INTEGRATION
+// WHEN WORKING WITH PYTHON YOU WILL HAVE TO GET FAMILIAR WITH READING DOCUMENTATION OF DIFFERENT PACKAGES
+	Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/python.shtml", JMP Window);
+
+// Few community posts
+	Web("https://community.jmp.com/t5/JMPer-Cable/JMP-is-Pythonic-Enhanced-Python-Integration-in-JMP-18/ba-p/723997", JMP Window);
+	Web("https://community.jmp.com/t5/JMPer-Cable/Creating-JSL-functions-implemented-in-Python/ba-p/750290", JMP Window);
+	Web("https://community.jmp.com/t5/JMPer-Cable/New-in-JMP-18-Python-jmp-DataTable-and-pandas-DataFrame/ba-p/744680", JMP Window);
+	
+Web("https://community.jmp.com/t5/Online-Abstracts/JMP-and-Python-The-Next-Step/ev-p/708092", JMP Window);
+
+// Plenary from JMP Discovery Summit Europe 2024 (@Paul_Nelson presenting Python, starting 40:30)
+	Web("https://community.jmp.com/t5/Abstracts/Peaks-Pipes-Presets-Profiles-and-Python-in-JMP-18/ev-p/708889", JMP Window);
+
+
+
+/*""" Python installation path (for JMP Pro 18.0.0) """ */
+// Python "installation" path can be a mess if you have JMP and JMPPro
+// as it seems to always be in JMP folder (it is also not dependent on JMP version?)
+pyfolder_path = Word([1 -2], Substitute(Get Path Variable("$HOME"), "JMPPRO", "JMP"), "/\") || "/Python/";
+Open(pyfolder_path);
+
+// Or you can go through Python (in my opinion this should be unnecessary if you are working in JSL)
+Python Execute({}, {py_dir}, 
+"\[
+import jmp
+py_dir = jmp.PY_USER_APPDIR
+]\");
+show(py_dir);
+Open(py_dir || "/Python/");
+
+
+/*""" Scripting Index and documentation """ */
+// Own object in Scripting Index (for JMP side)
+Open Help(
+	"Scripting Index",
+	IndexContext(Category("All Categories"), Object("Python"))
+);
+
+
+// Totally own category for Python 
+Open Help(
+	"Scripting Index",
+	Search(Term("")),
+	IndexContext(Category("Python"))
+);
+
+
+// Scripting Guide
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/python.shtml", JMP Window);
+
+
+// Utilizing help function in Python
+Python Submit("\[
+import jmp
+str = help(jmp.DataTable)
+]\");
+
+
+// Or pydoc
+Python Submit("\[
+import pydoc
+
+jmphelp = pydoc.render_doc(jmp, renderer=pydoc.plaintext)
+print(jmphelp)
+]\");
+
+
+nw = New Window("This is a python script box", 
+	Script Box(Python Get(jmphelp), "Python", 900, 800);
+);
+
+
+// exporting pydoc to html
+Python Submit("\[
+# pydoc.writedoc('jmp') # can't save to JMP installation folder
+import os
+os.chdir("c:/temp/")
+pydoc.writedoc('jmp')
+]\");
+Web("c:/temp/jmp.html", JMP Window);
+
+
+// There is also pyenv.py in sample scripts
+Python Submit File("$SAMPLE_SCRIPTS/Python/pyenv.py");
+
+
+/*""" JMP created examples """ */
+Open("$SAMPLE_SCRIPTS/Python"); // strongly suggest you check these out
+// Some more examples by @Paul_Nelson (also has py_samples.zip)
+Web("https://community.jmp.com/t5/Online-Abstracts/JMP-and-Python-The-Next-Step/ev-p/708092", JMP Window);
+
+
+// Three sections
+	// 1. JSL to Python
+	// 2. Python to JSL
+		// I won't spend too much in "Python" side as this isn't Python club
+		// I use Python to support my JMP work not otherway around
+	// 3. Examples
+
+
+/*""" JSL to Python """ */
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/jsltopython-interfaces.shtml#", JMP Window);
+// If you used Python Integration in earlier JMP versions, basically everything has changed
+// Note: Quite a few functions related to python integration have been depracated as of JMP18
+
+// I'm not 100% sure which modules JMP will install with its Python but at least pandas and numpy
+// (and modules required to run these). In addition there is jmp and jmputils and plenty of modules
+// in Python standard library
+
+
+// Python Get()
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/equivalent-data-types-for-python-get.shtml#", JMP Window);
+// Return data from Python (take note on data type equivalency)
+Python Get();
+
+
+// Python Submit()
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/python-integration-functions.shtml?os=win&source=application#ww7205909", JMP Window);
+// Submit statements to Python (string value or list of string values);
+Python Submit("\[
+strval = 'The quick brown fox jumps over the lazy dog'
+numval = 200
+floatval = 200.1
+listval = [1, 2, 3]
+boolval = True
+]\"
+);
+str = Python Get(strval);
+num = Python Get(numval);
+float = Python Get(floatval);
+l = Python Get(listval);
+bool = Python Get(boolval);
+show(str, num, float, l, bool); 
+
+// "pure" booleans are rarely used but they do exist with As Boolean
+As Boolean(1); // true
+As Boolean(0); // false
+As Boolean(2); // true
+As Boolean(1 > 2); // false
+Num(As Boolean(1)); // 1
+1 == As Boolean(1); // 1
+2 == As Boolean(1); // 0
+
+If(AsBoolean(1),
+	Show(1);
+,
+	Show(0);
+);
+
+// using list
+Python Submit({ 
+	"strval = 'abc'", 
+	"numval = 999", 
+	"\[print(f"{strval=} {numval=}") # f-string = syntax]\", 
+	"print(strval)
+print(numval)"
+});
+
+
+// Getting dataframe as JMP table directly using "ready" conversion
+Python Submit("\[
+import pandas as pd
+
+data = {
+    'NumericColumn': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    'CharacterColumn': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
+}
+df = pd.DataFrame(data)
+print(df.head)
+]\");
+
+// Will get you private JMP table (this uses .csv conversion in JMP 18.0.0 (you can see it from Source script))
+dt = Python Get(df);
+Show(dt << Get Script("Source"));
+
+dt << New Data View; // make the table visible
+
+Close(dt, no save);
+Python Submit("print(df.head)"); // still in "Python memory"
+
+
+// Python Send()
+// https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/equivalent-data-types-for-python-send.shtml#
+// Sends data to Python (take note on data type equivalency, it is not same as Python Get())
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/equivalent-data-types-for-python-send.shtml#", JMP Window);
+
+x = {1, 2, 3};
+Python Send(x);
+Python Submit("y = x + x");
+Show(Python Get(x), Python Get(y)); // get values to JSL and print
+Python Submit("print(f'{x = }')"); // print in Python and see in log
+
+dt = Open("$SAMPLE_DATA/Big Class.jmp", Invisible);
+Python Send(dt);
+Python Submit("print(dt)");
+
+Close(dt, no save);
+
+
+
+// Scoping operators - colons (: and ::), JMP names
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/jmp-scoping-operators-and-python.shtml#", JMP Window);
+// : and :: are not valid in Python object names so they will be converted
+// : will be replaced with _, :: are ignored
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/python-name-and-python-send-examples.shtml#", JMP Window);
+jmp var name = 25; // JMP allows for some special characters in variablenames (such as whitespace, #)
+Python Send(jmp var name);
+
+Python Submit("print(jmp var name)");
+
+jmp_var_name = 23;
+Python Send(jmp_var_name);
+Python Submit("print(jmp_var_name)");
+
+here:x = 1;
+::y = 2;
+Python Send(here:x);
+Python Submit("print(here:x)");
+Python Submit("print(here_x)"); // : -> _ (NOTE THE CONVERSION FROM INT TO FLOAT)
+
+Python Send(::y);
+Python Submit("print(::y)");
+Python Submit("print(y)"); // :: ignored (NOTE THE CONVERSION FROM INT TO FLOAT)
+
+// You can use different name using Python Name with Python Send()
+Python Send(jmp var name, Python Name("python_var_name"));
+Python Submit("print(python_var_name)");
+
+
+
+// Python JMP Name to Python Name()
+// Map jmp variable name to python variable name using python's variable naming rules
+Web("https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/python-name-and-python-send-examples.shtml#", JMP Window);
+pythonname1 = Python JMP Name to Python Name(jmp var name);
+pythonname2 = Python JMP Name to Python Name(jmp#var#name_a);
+pythonname3 = Python JMP Name to Python Name(here:x); // doesn't work with scoping variables directly
+
+
+// Python Execute()
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/python-integration-functions.shtml?os=win&source=application#ww7205846", JMP Window);
+// Send list of inputs, execute statement(s) and return a list of outputs
+aaa = "AAA_";
+Python Execute({aaa}, {bbb}, "bbb = aaa + aaa");
+Show(aaa, bbb);
+
+
+a = "abcdef";
+d = 3.141;
+x = 0;
+z = 0;
+v = [1 0 0, 0 1 0, 0 0 1];
+m = [3.141 2.718 1.618, 2.997 6.626 9.648, 3 4 5];
+Show(x, z, a, d);
+ml = Python Execute({v, m, a, d},{x, z, a, d},
+"\[
+import numpy as np
+a = np.multiply(v, m) # matrix product
+d = np.divide(v, m) # matrix division
+z = np.multiply(m, np.linalg.inv(v)) # m * inv(v) called Left division
+x = np.multiply(np.linalg.inv(m), v) # inv(m) * v called right division
+]\");
+
+Show(v, m, ml, x, z, a, d);
+
+
+// Python Send File(); // send data file to Python (path)
+Python Send File("$SAMPLE_DATA/Big Class.jmp");
+Python Submit("print(Big_Class)"); // We rely on table name...
+dt = Python Get(Big_Class); 
+Close(dt, No save);
+
+Python Send File("$SAMPLE_DATA/Big Class.jmp", Python Name("mydt")); // Make it more robust with Python Name
+Python Submit("print(mydt)");
+dt = Python Get(mydt); 
+Close(dt, No save);
+
+
+// Python Submit File(); // submit statements to python using the specified file (path)
+Python Submit File("$SAMPLE_SCRIPTS/Python/pyenv.py");
+
+
+
+/*""" Recap of JSL to Python """ */
+Python Submit("\[pystatement]\"); // submit statements to Python.
+
+// Python Get() and Python Send() perform data type conversion between JMP and Python, be vary of them (read documentation)
+Python Send(myjmpdata); // send data to Python (Supports Python Name())
+Python Get(mypythondata); // returns data from Python
+
+Python Execute({inputs}, {outputs}, "\[outputs = inputs + inputs]\"); // send list of inputs, execute statements and return a list of outputs
+
+Python Send File("pathtofile.jmp", Python Name(refname)); // Send a datafile path to Python. Use Python Name to make more robust
+Python Submit File("pathtofile.py"); // Submit statements in a file to Python
+
+
+
+
+
+/*""" Python to JSL """ */
+// Note: Python indices start from 0 and in JMP they mostly start from 1
+
+// This requires knowledge of Python and with that comes the capability to search documentation
+// all over internet
+
+/*
+import os
+cwd = os.getcwd()
+print(cwd)
+*/
+
+// Check out pyenv.py from sample scripts
+Open("$SAMPLE_SCRIPTS/Python/");
+
+curlog = Log Capture(Python Submit File("$SAMPLE_SCRIPTS/Python/pyenv.py"));
+pyscript = Remove From(curlog, 1, Contains(curlog, "/*:"));
+nw = New Window("pyenv.py", << show toolbars(0), << show men(0),
+	V Splitter Box(
+		Size(1200, 1000),
+		Panel Box("pyenv.py",
+			sb_script = Script Box(pyscript, "Python", 800, 450)
+		),
+		Panel Box("pyenv.py log print",
+			Script Box(curlog, "Python", 800, 450)
+		),
+		, << Sizes({0.6, 0.4})
+	)
+	, << Set Window Icon("Python")
+); // Note: Script Box has support for Python (and many others)
+sb_script << Show Line Numbers(1);
+
+
+// Python Submit File("C:\Program Files\JMP\JMPPRO\18\Samples\Scripts\Python\pyenv.py");
+
+// Support function for presenting
+create_python_window = function({str, title = "Python"}, {Default Local},
+	nw = New Window(title, 
+		sb = Script Box(str, "Python", 900, 600)
+	);
+	sb << Show Line Numbers(1);
+	return(nw);
+);
+
+
+// Python Syntax Refernce
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/python-syntax-reference.shtml#", JMP Window);
+
+
+// Constants (see pyenv.py or scripting index for more complete list)
+str = "\[
+import jmp
+
+print(f'{jmp.__jmp_version__ = }', end = "")
+print(f'{jmp.__version__ = }', end = "")
+print(f'{jmp.TEMP = }', end = "")
+print(f'{jmp.PY_USER_APPDIR = }', end = "")
+print(f'{jmp.PYTHON_EXE = }', end = "")
+
+]\";
+
+nw = create_python_window(str);
+
+
+Open Help(
+	"Scripting Index",
+	Search(Term("")),
+	IndexContext(Category("Python"))
+);
+
+
+// jmp.DataType and jmp.ModelingType
+str = "\[
+from jmp import DataType as dType
+from jmp import ModelingType as mType
+
+print('jmp.DataType members:', end = "")
+print(list(map(lambda c: c.name, dType)))
+
+print('jmp.ModelingType members:', end = "")
+print( list(map(lambda c: c.name, mType)))
+]\";
+nw = create_python_window(str);
+
+// jmp.open(), jmp.current(), jmp.table()
+str = "\[
+import jmp
+
+#if opens as jmp table, returns reference, otherwise True/False
+ret = jmp.open(jmp.SAMPLE_DATA + 'Big Class.jmp')
+
+# returns DataTable object for the current JMP data table
+print(jmp.current())
+
+# returns DataTable object for open table having specific name
+print(jmp.table('Big Class'))
+
+]\";
+nw = create_python_window(str);
+
+// jmp.run_jsl()
+// Run JSL within Python environment (including JSL's Python interface functions)
+str = "\[
+import jmp
+
+jmp.run_jsl("""
+Names Default To Here(1); 	
+	
+dt = open("$SAMPLE_DATA/Big Class.jmp");	
+	
+gb = dt << Graph Builder(	
+	Variables(X(:weight), Y(:height), Overlay(:sex)),	
+	Elements(Points(X, Y, Legend(9)), Line Of Fit(X, Y, Legend(11)))	
+);	
+""")
+]\";
+nw = create_python_window(str);
+
+
+
+// jmp.DataTable object
+str = "\[
+import jmp
+dt = jmp.open(jmp.SAMPLE_DATA + 'Big Class.jmp')
+print(f'{dt.name = }, {dt.nrows = }, {dt.ncols = }')
+]\";
+nw = create_python_window(str);
+
+
+// jmp.DataTable is iterable with jmp.Column as the iterator
+str = "\[
+import jmp
+dt = jmp.open(jmp.SAMPLE_DATA + 'Big Class.jmp')
+print(iter(dt))
+for colname in dt:
+	print(colname)
+]\";
+nw = create_python_window(str);
+
+
+str = "\[
+import jmp
+dt = jmp.open(jmp.SAMPLE_DATA + 'Big Class.jmp')
+print(f'{dt[0].data_length = }, {dt[0].dtype = }, {dt[0].mtype = }, {dt[0].name = }')
+]\";
+nw = create_python_window(str);
+
+
+// jmp.Column object
+
+
+/*""" Python Package Installation """ */
+// https://www.jmp.com/support/help/en/18.0/#page/jmp/install-python-packages-using-jsl.shtml?os=win&source=application#ww346342
+
+// Can be easy in JSL
+Python Install Packages("pandas");
+
+// Can be easy in Python
+str = "\[
+import jmp
+
+import jmputils
+# update to latest version of pip and setuptools then install numpy & pandas
+jmputils.jpip('install --upgrade', 'pip setuptools')
+jmputils.jpip('install', 'numpy pandas')
+]\";
+nw = create_python_window(str);
+
+
+
+// Can be manageable or very difficult
+Python Create JPIP CMD();
+// read the documentation it might help solve some possible issues
+// such as compiled python packages
+Web("https://www.jmp.com/support/help/en/18.0/#page/jmp/install-python-packages-using-jsl.shtml?os=win&source=application#ww346342", JMP Window);
+
+
+
+
+// As this is JMP user group and not Python, I will be mostly going from JSL to Python and not from Python to JSL
+// It is up to you how you prefer doing this. In my opinion if you are using JMP you mostly want to go from JSL to Python
+// as you want to end up in a situation where you can utilize JMP interactively
+
+
+/* ==== EXAMPLE: From data table to Python dataframe and back without using temporary files ==== */
+nw = new window("JMP2pandas.py",
+	sb = Script Box(
+		Load Text File("$SAMPLE_SCRIPTS/Python/JMP2pandas.py"),
+		"Python",
+		1000,
+		800
+	)
+);
+sb << Show Line Numbers(1);
+
+
+
+// Going from jmp.DataTable to pandas dataframe
+str = "\[
+import jmp
+import numpy as np
+import pandas as pd
+
+dt = jmp.open(jmp.SAMPLE_DATA + "Big Class.jmp")
+
+df = pd.DataFrame()
+for idx in range(len(dt)):
+	if dt[idx].dtype in [jmp.DataType.Character, jmp.DataType.Numeric]:
+		col = np.array(dt[idx])
+		df[dt[idx].name] = col.tolist()
+
+print(df.info(verbose=1))
+print(df.head(5))
+]\";
+
+// going from pandas dataframe to jmp table
+str = "\[
+import jmp
+# import pandas as pd
+import seaborn as sns 
+
+iris = sns.load_dataset('iris') # to get example data in dataframe format
+#print(iris.head)
+#print(iris.info(verbose=1))
+
+dt = jmp.DataTable('pandas', iris.shape[0])
+# most common dtypes for pandas: object, int64, float64, datettime64, bool
+for idx, col in enumerate(iris.columns):
+	if iris[col].dtype in ('float64', 'int64'): 
+		newcol = dt.new_column(col, jmp.DataType.Numeric, jmp.ModelingType.Continuous)
+	elif iris[col].dtype == 'object':
+		newcol = dt.new_column(col, jmp.DataType.Character, jmp.ModelingType.Nominal)
+	else:
+		continue # skip
+	dt[col] = iris[col].values.tolist()
+]\";
+nw = create_python_window(str);
+
+
+
+
+/* ==== EXAMPLE: Getting images from Python ==== */
+// Python Get Graphics() has been depracated
+// JMP suggest you save the images to files and then use JMP's Open
+
+// File paths might require some tinkering unix vs windows, escaping in python and so on
+savepath = Convert File Path("$TEMP/get_graphics_img.png", posix); 
+Remove From(savepath, 1); // drop first /
+
+Python Send(savepath);
+Python Submit(
+"\[
+import matplotlib.pyplot as plt
+plt.clf()
+plt.plot([1, 2, 3, 4])
+plt.ylabel('some numbers')
+plt.draw()
+#plt.show()
+plt.savefig(savepath)
+]\"
+);
+img_window = Open(savepath);
+// File Exists(savepath);
+// Delete File(savepath);
+
+
+// You can also do some "tricks" with io + base64 (not sure if this can have some issues but allows you to use io buffer)
+Python Submit("\[
+import base64
+import io
+
+import matplotlib.pyplot as plt
+
+plt.clf()
+plt.plot([1, 2, 3, 4])
+plt.ylabel('some numbers')
+plt.draw()
+
+my_iobytes = io.BytesIO()
+plt.savefig(my_iobytes, format='png', bbox_inches='tight')
+my_iobytes.seek(0)
+base64data = base64.b64encode(my_iobytes.read()).decode()
+print(base64data)
+]\");
+
+img = Open(Char To Blob(Python Get(base64data), "base64"), "png");
+nw = New Window("test", img);
+
+
+// Extra: Embedding images from JMP directly to webpages using Base64
+Web("https://community.jmp.com/t5/Uncharted/HTML-with-Embedded-Images/ba-p/483286", JMP Window);
+
+
+
+
+/* ==== EXAMPLE: Analysis which JMP doesn't (yet) have - HDBSCAN ==== */
+Web("https://hdbscan.readthedocs.io/en/latest/index.html", JMP Window);
+dt = Open("$SAMPLE_DATA/Iris.jmp");
+dt << Clear Row States; // species have been separated so we clear those
+
+// Requires JMP Pro BUT you can do this in Python
+obj = dt << Multivariate Embedding(
+	Y(:Sepal length, :Sepal width, :Petal length, :Petal width),
+	Method("UMAP")
+);
+obj << Save Embedding Component Values;
+obj << close window;
+
+
+Python Send(dt);
+Python Submit("\[
+import hdbscan
+import jmp
+import numpy as np
+import pandas as pd
+
+df = pd.DataFrame()
+for idx in range(5, 7):
+    df[dt[idx].name] = np.array(dt[idx])    
+
+clusterer = hdbscan.HDBSCAN(min_cluster_size=20, min_samples=5, cluster_selection_epsilon=0.1)
+cluster_labels = clusterer.fit_predict(df)
+
+df['Clusters'] = cluster_labels
+dt.new_column("CLUSTERS", jmp.DataType.Numeric, jmp.ModelingType.Nominal)
+dt["CLUSTERS"] = list(df.iloc[:,2])
+
+del df
+
+]\");
+
+// or you could use Python Get
+// dt << New Column("CLUSTERS", Numeric, Nominal, Values(Python Get(cluster_labels)));
+
+gb = dt << Graph Builder(
+	Size(528, 454),
+	Show Control Panel(0),
+	Variables(X(:UMAP1), Y(:UMAP2), Color(:CLUSTERS)),
+	Elements(Points(X, Y, Legend(3))),
+	Column Switcher(:CLUSTERS, {:Species, :CLUSTERS})
+);
+
+
+// Full demo of hdbscan with JMP UI
+Open("hdbscan_fulldemo.jsl");
+
+
+/* ==== EXAMPLE: Loading file which JMP doesn't (yet?) support - TDMS file  ==== */
+Web("https://nptdms.readthedocs.io/en/stable/", JMP Window);
+// (If JMP's DLL handling was better, I would do this purely in JSL but currently it isn't possible) -> Python 
+filepath = Pick File("Select .tdms file",
+	"$Downloads/Scripters",
+	{"TDMS Files|tdms"},
+	1,
+	0,
+	"",
+	0
+);
+If(Is Missing(filepath),
+	Throw("No file selected");
+);
+// "fix" filepath
+Remove From(filepath, 1); // drop first /
+
+parse_tdms = "\[
+import jmp
+from nptdms import TdmsFile
+
+with TdmsFile.open(filepath) as tdms_file:
+	df = tdms_file.as_dataframe()
+	print(df.head)
+	filename = filepath.split('/')[-1]
+	
+	dt = jmp.DataTable(filename,df.shape[0])
+	for j in range(df.shape[1]):
+		dt.new_column(df.columns[j], jmp.DataType.Numeric, jmp.ModelingType.Continuous)
+		dt[j] = list(df.iloc[:,j])
+	del df
+]\";
+
+Python Execute({filepath}, {dt}, parse_tdms);
+Show(dt); // As I used Python Execute, I get access to dt
+
+
+
+/* ==== Creating JMP function which directly utilizes Python function==== */
+Web("https://community.jmp.com/t5/JMPer-Cable/Creating-JSL-functions-implemented-in-Python/ba-p/750290", JMP Window);
+my_hidden_python_function = function({arg1, arg2}, {Default Local},
+	Python Submit("\[
+def my_func(first, second):
+	return(first + second)
+]\");
+
+	Python Execute({arg1, arg2}, {resval}, "resval = my_func(arg1, arg2)");
+	
+	return(resval);
+);
+
+// Python's "+" can be used with many different datatypes
+res1 = my_hidden_python_function(1, 2);
+res2 = my_hidden_python_function("my", " name");
+res3 = my_hidden_python_function({1, 2}, {3, 4});
+show(res1, res2, res3);
+
+
+
+// You can go a bit silly with *args and **kwargs
+Python Submit("\[
+def foo(*argv):
+    for arg in argv:
+        print("Next argument through *argv :", arg)
+]\");
+
+args = {1, "a", "b"};
+callscript = Eval Insert("\[resval = foo(^Substitute(Char(args), "{", "", "}", "")^)]\"); // definitely not the most robust
+Eval(EvalExpr(
+	Python Execute({}, {resval}, Expr(callscript));
+));
+
+
+
+Python Submit("\[
+def foo(**kwargs):
+    for entry in kwargs.items():
+        print("Key: {}, value: {}".format(entry[0], entry[1]))
+]\");
+
+kwargs = {a = 1, b = 2};
+callscript = Eval Insert("\[resval = foo(^Substitute(Char(kwargs), "{", "", "}", "")^)]\");
+Eval(EvalExpr(
+	Python Execute(Expr(kwargs), {resval}, Expr(callscript));
+));

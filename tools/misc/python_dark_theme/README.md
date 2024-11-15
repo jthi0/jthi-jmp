@@ -1,0 +1,3 @@
+https://community.jmp.com/t5/JMP-Scripters-Club-Discussions/Scripters-Club-Recording-Running-Python-Code-within-JSL/m-p/767360/highlight/true#M148
+
+In addition I have added code for my dark theme I use for JMP's Python Script Editor. If you wish to use it be sure to understand how those themes work, I haven't had any issues (yet), this is old wish list item so I'm not sure if all the comments are relevant anymore https://community.jmp.com/t5/JMP-Wish-List/JSL-Text-Editor-Color-Themes/idi-p/56203/page/2. The "theme" is controlled  by JMPStyles.PFS file found from C:\Users\<username>\AppData\Roaming\JMP\JMP\18 (for windows)

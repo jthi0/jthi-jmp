@@ -1,0 +1,18 @@
+nw = New Window("Modal Window", << modal, << return result,
+	H List Box(
+		Panel Box("Options",
+			lb = List Box({})
+		),
+		Panel Box("Actions",
+			Lineup Box(N Col(1),
+				Button Box("OK"),
+				Button Box("Cancel")
+			)
+		)
+	)
+	, << Set Window Icon("Warning")
+);
+
+If(nw["Button"] != 1,
+	Throw("Cancelled");
+);

@@ -1,0 +1,19 @@
+function1 = function({param1, param2, param3 = .}, {Default Local},
+	/*"""function1 which returns missing.
+	
+	More description regarding the function
+	
+	Args:
+		param1 (displaybox): 
+		param2 (char): 
+		param3 (num): 
+	
+	Returns:
+		num: missing
+	
+	Raises:
+		exception_msg
+	"""*/
+	
+	return(.);
+);

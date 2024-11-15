@@ -1,0 +1,208 @@
+/*"""This Add-In provides Snippet functionality to JMP Script Editor.
+
+Author: jthi
+Creation Date: 2022-12-18
+Creation JMP Version: JMP Pro 17
+
+Description: After this add-in has been installed user can launch the add-in with
+shortcut Ctrl+Shift+Space. When add-in first time run, add-in will create folder for
+snippets to users Documents folder with this add-ins name (jmp_script_editor_snippets).
+
+Todo:
+    * Fix focus issues (might require Windows API...)
+    * Add new snippets
+	* Add possibility to embed snippet list to right side of script editor
+"""*/
+
+Names Default To Here(1);
+
+Include("config/jses_config.jsl");
+
+init_documents_path = function({user_snippet_path}, {Default Local},
+    /*"""Creates folder for user's snippets to $DOCUMENTS
+    """*/
+	If(!Directory Exists(user_snippet_path),
+		Try(
+			snippet_document_path = Create Directory(user_snippet_path);
+			Print(Eval Insert("Snippet document path created: ^user_snippet_path^"));
+		,
+			show(exception_msg);
+		);
+	);
+);
+
+get_snippet_aa = function({user_snippet_path, addin_snippet_path}, {Default Local},
+    /*"""Gets possible snippets from add-in and user's documents folder
+
+    Returns:
+        Associative Array: Keys as snippet names and values as snippet strings.
+    """*/
+	snippet_list = Associative Array();
+	For Each({file}, Files In Directory(user_snippet_path, recursive(1)),
+		If(Ends With(file, ".jsl"),
+			snippet_list[Word(1, file, ".")] = Load Text File(user_snippet_path || file);
+		);
+	);
+
+	For Each({file, idx}, Files In Directory(addin_snippet_path, recursive(1)),
+		If(Ends With(file, ".jsl"),
+			snippet_list[Word(1, file, ".")] = Load Text File(addin_snippet_path || file);
+		);
+	);
+	return(snippet_list);
+);
+
+filter_snippet_list = function({snippet_list, teb_txt, lb, sb}, {Default Local},
+    /*"""Gets possible snippets from add-in and user's documents folder
+	
+    Args:
+        snippet_list (Associative Array): The first parameter.
+        teb (Text Edit Box): The second parameter.
+        lb (List Box): The first parameter.
+        sb (Script Box): The second parameter.
+        	
+    Returns:
+        Associative Array: Keys as snippet names and values as snippet strings.
+    """*/
+	search_str = teb_txt;
+	reset_snippet_list = Expr(
+		lb << Set Items(snippet_list << get keys);
+		sb << Set Text("");
+		return();		
+	);
+
+	If(Is Missing(search_str), 
+		reset_snippet_list;
+	);
+	
+	similar = Filter Each({snippet}, snippet_list << get keys,
+		Contains(snippet, lowercase(search_str))
+	);
+	
+	If(N Items(similar) == 0, 
+		reset_snippet_list;
+	);
+
+	// Requires evaluation inside or the value gets stuck for some reason
+	Eval(EvalExpr(
+		new_val = Choose Closest(search_str, similar, Ignore Case(1), 
+			Max Edit Count(2), Min String Length(2), Unmatched(Expr(similar[1]))
+		);
+	));
+
+	lb << Set Items(similar);
+	lb << Set Selected(Contains(similar, new_val));
+);
+
+update_script_preview = function({lb, sb}, {Default Local},
+	If(N Items(lb << get selected) > 0,
+		sb << Set Text(char(snippet_list[(lb << get selected)[1]]));
+		sb << Reformat;		
+	);
+);
+
+get_snippet_line = function({}, {Default Local},
+    /*"""Gets current snippet line number.
+
+    Returns:
+        Int: Line number for the earliest snippet. 0 if no line found.
+    """*/
+	sb = Current Window()[Script Box(1)];
+	lines = sb << Get Lines();
+	cur_snippet_line = 0;
+	cur_line = "";
+	intendation = "";
+	line_found = 0;
+	For Each({line, idx}, lines,
+		For Each({snippet_str}, here:snippet_list,
+			snippet_line_str = Regex(line, "(\s*)("||snippet_str||")");
+			If(!Is Missing(snippet_line_str),				
+				cur_snippet_line = idx;
+				cur_line = line;
+				intendation = Substitute(snippet_line_str, snippet_str, "");
+				line_found = 1;
+				break();
+			);
+		);
+		If(line_found,
+			break();
+		);
+	);
+	return(Eval List({cur_snippet_line, cur_line, intendation}));
+);
+
+run_snippet_selector = function({}, {Default Local},
+
+	If(Is Empty(Current Window()[Script Box(1)]),
+		return();
+	);
+	{cur_snippet_line, line, intendation} = get_snippet_line();
+	If(cur_snippet_line < 1,
+		return();
+	);
+
+	/* create user document folder for snippets if it is missing*/
+	init_documents_path(user_snippet_path);
+
+	snippet_list = get_snippet_aa(user_snippet_path, addin_snippet_path);
+	
+	sb = Current Window()[Script Box(1)];
+	init_search_term = Trim Whitespace(Word(2, line));
+	
+	If(N Items(snippet_list) == 0,
+		return();
+	);
+	Eval(EvalExpr(
+		nw = New window(window_name, << modal, <<return result,
+			H List Box(
+				V List Box(
+					Text Box("Selected snippet will replace #snippet"),
+					Border Box(Left(0), Right(0), top(0), bottom(0), sides(15),
+						H List Box(
+							align("center"),
+							teb = Text Edit Box("", 
+								<< Set Text Changed(function({this, value}, 
+									filter_snippet_list(snippet_list, value, lb, sb);
+								)),
+								<<Set Min Size(100, -1),
+								<<Set Max Size(450, -1),
+								<<Set Auto Stretching(1, 0),
+								<<Set Hint("Filter...")
+							)
+						)
+					),
+					lb = List Box(snippet_list << get keys, << Set Max Selected(1), << Set N Lines(Expr(list_box_nlines)),
+						update_script_preview(lb, sb);
+					)
+				),
+				Panel Box("Script Preview",
+					sb = Script Box("", "JSL", Expr(script_preview_width), Expr(script_preview_height))
+				)
+			),
+			<< Set Window Icon(Expr(window_icon));
+			sb << Enabled(Expr(enable_script_box)); // prevents selection of script box
+			sb << Read Only(Expr(read_only_script_box));
+			teb << Set Text(init_search_term, Run Script(1));
+		);
+	));
+	
+	If(nw["Button"] != 1,
+		return();
+	);
+	
+	If(N Items(nw["lb"]) > 0,
+		{cur_snippet_line, line, intendation} = get_snippet_line();
+		If(cur_snippet_line > 0,
+			cur_snippet = nw["lb"][1];
+			sb = Current Window()[Script Box(1)];
+			
+			lines = Items(snippet_list[cur_snippet], "\!r");
+			indented_lines = Transform Each({line}, lines,
+				intendation || line
+			);
+			indented_snippet = Concat Items(indented_lines, "");
+			sb << Set line text(cur_snippet_line, indented_snippet)
+		);
+	);
+);
+run_snippet_selector();

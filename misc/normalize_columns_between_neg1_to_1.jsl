@@ -1,0 +1,38 @@
+Names Default To Here(1);
+
+dt = Open("$SAMPLE_DATA/Semiconductor Capability.jmp");
+contcols = dt << Get Column Names("Continuous", "String");
+
+get_spec = function({dt, cols}, {Default Local},
+	aa_specs = Associative Array();
+	For Each({colname}, cols,
+		specs = Column(dt, colname) << Get Property("Spec Limits");
+		lsl = Try(specs["LSL"], .);
+		usl = Try(specs["USL"], .);
+		aa_specs[colname] = Eval List({lsl, usl});
+	);
+	
+	return(aa_specs);
+);
+
+create_normalized_column = function({dt, colname, limits, min = -1, max = 1}, {Default Local},
+	Eval(EvalExpr(
+		new_col =dt << New Column(colname || "_NORMALIZED", Numeric, Continuous, Formula(
+			Expr(min) + ((Expr(NameExpr(AsColumn(dt, colname))) - Expr(limits[1])) * (Expr(max) - Expr(min))) /
+			(Expr(limits[2]) - Expr(limits[1]))
+		));		
+	));
+	dt << run formulas;
+	new_col << Suppress Eval(1);
+	Eval(EvalExpr(
+		new_col << Set Property("Spec Limits", {LSL(Expr(min)), USL(Expr(max)), Target(max - min), Show Limits(1)});
+	));
+	
+	return(new_col);
+);
+
+specs = get_spec(dt, contcols);
+
+For Each({colname}, contcols,
+	create_normalized_column(dt, colname, specs[colname]);
+);

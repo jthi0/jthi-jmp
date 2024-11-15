@@ -1,0 +1,236 @@
+﻿/*"""One sentence function description.
+
+Author: 
+Creation Date: 
+Creation JMP Version: 
+
+Description: 
+
+Todo:
+    * 
+    * 
+	
+"""*/
+
+// stricly tied to Current Report() on startup
+	// we can run Show Properties()
+	// we can also select from report layer
+	// we can test XPath
+		// would be excellent if we could link both options (db traveler and xpath together)
+	
+
+// https://community.jmp.com/t5/Discussions/Display-Box-Level/td-p/598441
+Names Default To Here(1);
+
+// based on name -> set icon
+// set expanded/closed icons
+// what data to store?
+// what tips to store
+// 
+
+expand_child = Function({tree, node}, {Default Local},
+	tree << expand(node);
+	child_count = node << Get Child Count();
+	For(i = 1, i <= child_count, i++,
+		child = node << Get Child(i);
+		Recurse(tree, child);
+	);
+);
+
+collapse_child = Function({tree, node}, {Default Local},
+	tree << collapse(node);
+	child_count = node << Get Child Count();
+	For(i = 1, i <= child_count, i++,
+		child = node << Get Child(i);
+		Recurse(tree, child);
+	);
+);
+
+expand_tree = Function({tree}, {Default Local},
+	For Each({root}, tree << get roots(), expand_child(tree, root))
+);
+
+collapse_tree = Function({tree}, {Default Local},
+	For Each({root}, tree << get roots(), collapse_child(tree, root))
+);
+
+create_node = function({nodename, nodedata = ., nodeicon = "BlankIndex", nodetip = ""}, {Default Local},
+	node = Tree Node();
+	node << Set Label(nodename);
+	node << Set Data(nodedata);
+	Try(node << Set Icon(nodeicon));
+	node << Set Tip(nodetip);
+	
+	return(node);
+);
+
+
+//dt = Open("$SAMPLE_DATA/Big Class.jmp");
+dt = New Table("Untitled 99", New Column("Column 1", Character, "Nominal", Set Values({"A"})));
+dist = dt << Distribution(Nominal Distribution(Column(:Column 1)), Histograms Only);
+nw = (dist << report) << top parent;
+xml_str = nw << get xml;
+
+TAG_PATTERN = "(<\w+|</\w+|/>)";
+lines = Words(xml_str, "\!N");
+
+xml_line = Remove From(lines, 1)[1];
+cur_tag = Regex Match(xml_line, TAG_PATTERN, "¤");
+tag_name = Trim Whitespace(Substitute(cur_tag[1], "<", ""));
+root = create_node(tag_name, 1, tag_name, "");
+cur_parent = root;
+
+
+For Each({xml_line, cur_line}, lines, // we want to use this for adding line number
+	While(N Items(cur_tag = Regex Match(xml_line, TAG_PATTERN, "¤")) > 0,
+		If(Contains(cur_tag[1], "/>") | Contains(cur_tag[1], "</"), // end tag
+			If(!Is Empty(cur_node),
+				If(!Is Empty(cur_parent << parent),
+					cur_parent = cur_parent << parent;
+				,
+					cur_parent = cur_node;
+				);
+			);
+		, // not end tag -> we can parse attributes
+			tag_name = Trim Whitespace(Substitute(cur_tag[1], "<", ""));
+			cur_node = create_node(tag_name, Expr(cur_line), tag_name, Char(cur_line));
+			cur_parent << Append(cur_node);
+			cur_parent = cur_node;
+		);
+	);
+);
+
+
+// if outlinebox -> get title? or something
+// OutlineBox["Title"]
+
+new window("", tb = Tree box(root, Size(500, 600)));
+tb << Set Node Double Click Script(function({thistree, thisnode},
+	/*If(thistree << Is Expanded(thisnode),
+		//collapse_child(thistree, thisnode);
+	,
+		expand_child(thistree, thisnode);
+	);*/
+	sb = ::nw[ScriptBox(1)];
+	cur_line = sb << get line text(thisnode << get data);
+	show(cur_line);
+	sb << set line text(thisnode << get data, cur_line);
+));
+
+stop();
+
+
+traverse_display_tree_objects = Function({db}, {Default Local},
+	db_name = Char(db << class name);
+	new_node = create_node(db_name, db, db_name, "");
+	cur_node << Append(new_node);
+	
+	childdb = db << child;
+	If(!Is Empty(childdb),
+		cur_node = new_node;
+	,
+		cur_node = cur_node << parent;
+	);
+	While(Is Scriptable(childdb),
+		Recurse(childdb);
+		childdb = childdb << sib;
+
+	);
+);
+
+
+
+db = nw;
+db_name = db << class name;
+root2 = Tree Node(db_name);
+root2 << Set Data(db);
+
+cur_node = root2;
+traverse_display_tree_objects(db << child);
+new window("", tb2 = Tree box(root2, Size(500, 600)));
+
+
+root << get child count
+root2 << get child count
+
+tb << Set Node Select Script(function({thistree, thisnode},
+	nw << Deselect(1);
+	(thisnode << get data) << Select(1);
+));
+
+/*
+tree << Set Node Double Click Script(
+	Function({tree, node},
+		child_count = node << Get Child Count;
+		If(node << Is Leaf(),
+			If(Is Control Key(),
+				open_node_file_columns(tree, node);
+//			,Is Alt Key(),
+				//			,Is Shift Key(),
+			, //else
+				open_node_path(tree, node)
+			);
+		//is shift...is alt...is ctrl
+			//get info...
+		
+		, //else folder
+			If(
+				Is Shift Key() | Is Alt Key(),
+					If(tree << Is Expanded(node),
+						Show("collapse");
+						collapse_child(tree, node);
+					,
+						Show("expand");
+						expand_child(tree, node);
+					),
+				Is Control Key(), open_node_path(tree, node)
+			)
+		);
+	)
+);
+
+
+
+	tree << Set Context Menu Script(
+		Function({thistree, thisnode},
+			If(Is Empty(thisnode),
+				{/*Whole Tree Menu*/
+				{"Expand Tree", "", Function({tree, node},
+					expand_tree(tree)
+				)}, {"Collapse Tree", "", Function({tree, node},
+					collapse_tree(tree)
+				)}}
+			,
+				{/*node menu*/
+				{"Open", "", Function({tree, node},
+					open_node_path(tree, node)
+				)}, {"Open with columns", "", Function({tree, node},
+					open_node_file_columns(tree, node)
+				)}, {"Copy Path to Clipboard", "", Function({tree, node},
+					Set Clipboard(get_node_path(tree, node))
+				)}, {"Open Directory", "", Function({tree, node},
+					open_node_directory(tree, node)
+				)}, {"Get file info", "", Function({tree, node},
+					get_node_file_info(tree, node)
+				)}, {"", "separator", ""}, {"Expand Node", "", Function({tree, node},
+					expand_child(tree, node)
+				)}, {"Collapse Node", "", Function({tree, node},
+					collapse_child(tree, node)
+				)}, //jos koittaa collapseta leaffia -> collapsee parent node
+				{"", "separator", ""}, {"Expand All", "", Function({tree, node},
+					expand_tree(tree)
+				)}, {"Collapse All", "", Function({tree, node},
+					collapse_tree(tree)
+				)}, {"", "separator", ""}, {"Copy to $TEMP", "", Function({tree, node},
+					Show("Copy to $TEMP")
+				)}, {"Copy to $Desktop", "", Function({tree, node},
+					Show("Copy to $Desktop")
+				)}, {"Open as Copy", "", Function({tree, node},
+					Show("Open as Copy")
+				)}, {"Open in Script Editor", "", Function({tree, node},
+					Show("Open in Script Editor")
+				)}}
+			)
+		)
+	);
+	*/

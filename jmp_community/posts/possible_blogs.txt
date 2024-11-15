@@ -1,0 +1,30 @@
+Blog post possibilities:
+	https://community.jmp.com/t5/blogs/blogworkflowpage/blog-id/jmp-blog/article-id/4589?prePageCrumb=BlogDashboardPage
+	
+	From Jarmo's desk: Setting limit lines to my graphs
+	
+	From Jarmo's desk: Reading and understanding JSL syntax
+		https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/jsl-terminology.shtml#
+		https://www.jmp.com/support/help/en/18.0/index.shtml#page/jmp/scripting-guide-glossary.shtml
+		
+		Tips to make your code readable
+			Caveat: my styling... no white space aroud brackets.. pep8
+		
+	From Jarmo's desk: Things to avoid when scripting
+	From Jarmo's desk: Debugging Scripts with Script Editor
+
+	From Jarmo's desk: Referencing columns
+	From Jarmo's desk: (De)mystifying JMP expressions
+
+	From Jarmo's desk: Datetime in JMP
+	From Jarmo's desk: String manipulation in JMP
+	
+	Navigating the report layer and getting most out of it
+	From Let JMP Script for You to Scripting with JMP (at least two parts)
+	
+    
+	Building JMP like interfaces	
+	Building add-ins
+	
+	Namespaces/scopes
+	Parsing text files

@@ -1,0 +1,55 @@
+﻿/*""" JSL in Graph Builder
+
+Author: jthi
+Creation Date: 2024-09-18
+Creation JMP Version: JMP Pro 18.0.1
+
+"""*/
+
+/*
+#NOTE
+These are my personal opinions. I do not work for JMP and I have not studied programming (outside of few basic courses)
+So these can contain bad practices or possibly some incorrect guidelines/information
+*/
+
+// https://community.jmp.com/t5/The-Plot-Thickens/Reply-All-How-to-script-dynamic-content-for-Graph-Builder/ba-p/21092
+
+Names Default To Here(1);
+stop(); // to prevent script from running to end while still adding here scope
+
+// Using JSL for some things in graph builder can be extremely difficult
+// Graph builder doesn't expose everything in it's analytical and/or report layer
+// which can make creating some scripts very difficult
+// Some of these are not limited to graph builder and can be extended to other graphical
+// reports
+
+
+
+// Adding specification limits
+	// Do not force yourself into scripting...
+		// you can utilize column property (wide/split table)
+		// you can use limit columns (long/stacked table)
+// add ref line
+// graphic script
+
+// FrameBoxes
+// AxisBoxes
+
+
+// Updating the title(s)
+
+// modifying axis
+
+// accessing elements in graph builder
+
+// Changing variables/elements
+
+// Dynamically building graph builder
+	// in most simple case just use Eval()
+	// build expressions
+
+// scripting hover labels
+
+
+// I will only demonstrate one very simple example with graphic scripts
+// as those are most likely covered in more detail in next session

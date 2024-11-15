@@ -1,0 +1,37 @@
+/*""" Copy JMP on windows from one pc to other
+
+Author: 
+Creation Date: 
+Creation JMP Version: 
+
+Description: 
+https://community.jmp.com/t5/Discussions/Moving-from-Windows-10-to-MacOS/td-p/389453
+
+Todo:
+    * 
+    * 
+	
+"""*/
+
+Names Default To Here(1);
+
+JMP Version()
+JMP Product Name()
+
+// Preferences
+// Addins
+	// must verify how it will behave with addins not allowed for JMP version
+// Toolbars
+// Per file (earlier than JMP18)
+// With JMP18 there will also be python packages
+// Files in JMP installation folder
+// ProgramData
+
+// Recent files
+	// This will require registry editing, so most likely I won't touch this
+	
+
+/*
+export_jmp
+import_jmp()
+*/

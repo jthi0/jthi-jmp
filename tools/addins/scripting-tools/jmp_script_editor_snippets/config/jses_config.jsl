@@ -1,0 +1,20 @@
+Names Default To Here(1);
+
+window_name = "JMP Script Editor Snippets";
+window_icon = "WinSaveScriptToDataTable";
+addin_snippet_path = "$ADDIN_HOME(jthi.jmp.script.editor.snippets)/bin/snippets/";
+
+user_snippet_path = "$DOCUMENTS/jmp_script_editor_snippets/";
+
+list_box_nlines = 25;
+script_preview_width = 700;
+script_preview_height = 350;
+enable_script_box = 0;
+read_only_script_box = 0;
+
+snippet_list = {"#sni", "#snip", "#snippet"};
+disable_snippets = {};
+
+help_url = "https://community.jmp.com/t5/JMP-Add-Ins/JMP-Script-Editor-Snippets/ta-p/583420";
+
+Write();

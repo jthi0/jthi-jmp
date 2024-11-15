@@ -1,0 +1,139 @@
+/*""" Simple script to clear some properties of JMP data table
+
+Author: jthi
+Creation Date: 2024-08-31
+Creation JMP Version: JMP Pro 18.0.1
+
+Description: 
+	https://community.jmp.com/t5/JMP-Wish-List/Add-a-feature-to-clean-data-table/idi-p/791256
+	
+Todo:
+    * Create add-in
+    * Wrap functionalities inside a class
+    * Create standalone functions
+	
+"""*/
+
+Names Default To Here(1);
+
+
+Names Default To Here(1);
+
+If(N Table() < 1,
+	Throw("No tables open");
+);
+
+dt = Current Data Table();
+
+INIT_TABLE_VARIABLES = 1;
+INIT_TABLE_SCRIPTS = 1;
+INIT_FORMULAS = 1;
+INIT_COLUMN_PROPERTIES = 0;
+INIT_ROW_STATES = 0;
+INIT_EXPORT_TO_FILE = 1;
+
+delete_table_variables = function({dt}, {Default Local},
+	For Each({varname}, dt << Get Table Variable Names,
+		dt << Delete Table Variable(varname);
+	);
+	return(1);
+);
+
+delete_table_scripts = function({dt}, {Default Local},
+	dt << Delete Scripts(dt << Get Table Script Names);
+	wait(0);
+	return(1);
+);
+
+delete_formulas = function({dt}, {Default Local},
+	dt << run formulas;
+	For Each({colname}, dt << Get Column Names("String"),
+		Try(Column(dt, colname) << Delete Formula);
+	);
+	return(1);
+);
+
+delete_all_column_properties = function({dt}, {Default Local},
+	// will also remove formulas
+	For Each({colname}, dt << Get Column Names("String"),
+		props = Column(dt, 1) << Get Properties List;
+		For Each({prop}, props,
+			Column(dt, 1) << Delete Property(Head Name(prop));
+		);
+	);
+	return(1);
+);
+
+delete_row_states = function({dt}, {Default Local},
+	dt << Clear Row States;
+	return(1);
+);
+
+clean_table = function({dt, tablevar, tablescript, colformula, colproperty, rowstates}, {Default Local},
+	If(tablevar, delete_table_variables(dt));
+	If(tablescript, delete_table_scripts(dt));
+	If(colformula, delete_formulas(dt));
+	If(colproperty, delete_all_column_properties(dt));
+	If(rowstates, delete_row_states(dt));
+	wait(0);
+);
+
+
+nw = New Window("Clean Data Table",
+	Tab Box(
+		Tab Page Box("Selections",
+			Lineup Ruler Box(
+				Widths({250}),
+				Panel Box("Table Properties",
+					Lineup Box(N Col(1),
+						cb_tablevar = Check Box({"Delete Table Variables"}, << Set All(INIT_TABLE_VARIABLES)),
+						cb_tablescript = Check Box({"Delete Table Scripts"}, << Set All(INIT_TABLE_SCRIPTS))
+					)
+				),
+				Panel Box("Column Properties",
+					Lineup Box(N Col(1),
+						cb_formula = Check Box({"Delete Formulas"}),
+						cb_colproperty = Check Box({"Delete Column Properties"})
+					)
+				),
+				Panel Box("Row States",
+					Lineup Box(N Col(1),
+						cb_rowstates = Check Box({"Clear all row states"})
+					)					
+				)
+			)
+			, << Set Base Font("Title")
+		),
+		Tab Page Box("Actions",
+			Lineup Box(N Col(1),
+				Button Box("OK", 
+					<< Set Function(function({this},
+						clean_table(dt,
+							cb_tablevar << get,
+							cb_tablescript << get,
+							cb_formula << get,
+							cb_colproperty << get,
+							cb_rowstates << get
+						);
+						If(!(cb_keepdialog << get),
+							this << close window;
+						);
+					))
+				),
+				cb_keepdialog = Check Box({"Keep Dialog Open"}, << Set All(1)),
+/*				Check Box({"Export to JSON before clean"}),
+				Check Box({"Export to table script"}),
+				Check Box({"Export to script window"}),
+				Check Box({"Export encypted script window"}),				
+				Button Box("Load from JSON"),
+*/
+				Spacer Box(Size(0, 10)),
+				Button Box("Cancel", << Set Function(function({this}, this << close window;)))
+			)
+			, << Set Base Font("Title")			
+		)
+		, << Set Style("Horizontal Spread")
+	)
+);
+
+Write();

@@ -1,0 +1,210 @@
+Names Default To Here(1);
+
+//ctrl + alt + shift + W to shortcut button
+
+use_gui = 1; // defines if GUI should be used, if not will default to selected settings ignoring use_clipboard setting
+match_case = 1; // matches case
+match_entire_cell = 1; // matches only full matches
+use_clipboard = 1; // if set to 1 will automatically get text from clipboard on startup
+
+tb_width = 200;
+tb_nlines = 20;
+
+If(N Table() == 0,
+	Throw("No tables open");
+);
+
+remove_duplicates = function({txt}, {Default Local},
+	teb_list = Associative Array(Words(txt, ",\!N\!t"/* ADD MORE HERE*/)) << get keys; // aa to remove duplicates
+	return(teb_list);
+);
+
+
+build_where_statement = function({col_name_list, search_string, match_case, match_entire_cell, dt}, {Default Local},
+
+// with exact match Contains() is easiest
+// with non-exact match Regex() might be easiest to use (Contains Item is other option, but it is more complicated)
+// Regex("abc", "a|b|c", "\0", IGNORECASE);
+	If(N Items(col_name_list) == 0,
+		col_name_list = dt << Get Column Names("String");
+	);
+	
+	If(match_case,
+		teb_text = search_string;
+		col_list = Transform Each({col_name}, col_name_list,
+			Eval Insert("Char(:\!"^col_name^\!"n)");
+		);
+	,
+		teb_text = lowercase(search_string);
+		//change columns to lowercase...
+		col_list = Transform Each({col_name}, col_name_list,
+			Eval Insert("lowercase(Char(:^col_name^))");
+		);		
+	);
+	teb_list = remove_duplicates(teb_text);
+	If(match_entire_cell,
+		If(N Items(col_list) == 1,
+			search_expr = EvalExpr(Name Expr(
+				Contains(Expr(teb_list), Expr(Parse(col_list[1])))	
+			));
+		,
+			search_expr = Expr(Or());
+			For Each({col}, col_list,
+				Eval(EvalExpr(
+					Insert Into(search_expr, Name Expr(Contains(Expr(teb_list), Expr(Parse(col)))))
+				));
+			);
+		);
+	,
+		If(N Items(col_list) == 1,
+			search_expr = EvalExpr(Name Expr(
+				//Contains Item(Expr(Parse(col_list[1])), Expr(teb_list), " ");
+				Regex(col_list[1], Expr(Concat Items(teb_list, "|")), "\0", IGNORECASE);
+			));
+		,
+			search_expr = Expr(Or());
+			For Each({col}, col_list,
+				Eval(EvalExpr(
+					Insert Into(search_expr, Name Expr(Contains Item(Expr(Parse(col)), Expr(teb_list), " ")))
+				));
+			);
+		);
+	);
+	return(name expr(search_expr));
+);
+
+dt = Current Data Table();
+If(!use_gui,
+	col_list = dt << Get Selected Columns(String);
+	If(N Items(col_list) == 0,
+		col_list = dt << Get Column Names(String);
+	);
+	search_string = Get Clipboard();
+	where_statement = build_where_statement(col_list, search_string, match_case, match_entire_cell, dt);
+	dt << Select Where(Eval(where_statement));
+	stop();
+);
+
+If(use_clipboard,
+	default_list = remove_duplicates(Get Clipboard());
+	default_txt = Concat Items(default_list, "\!N");
+	
+	,
+	default_txt = "";
+);
+
+nw = New Window("Select Where Multiple",
+	window:dt = dt;
+	V List Box(
+		Panel Box("Instructions",
+			Text Box("If no columns are selected, search from all columns")
+		),
+		H List Box(
+			Panel Box("Column Selection",
+				window:fcs = Filter Col Selector(dt, << Set N Lines(13)),
+				window:fcs[IfBox(1)] << Set(1),
+				Lineup Box(N Col(1),
+					window:cb_match_case = Check Box({"Match case"}, << Set(match_case)),
+					window:cb_match_entire_cell = Check Box({"Match Entire Cell"}, << Set(match_entire_cell))
+					// H List Box(Text Edit Box(","), Text Box(" Rgx Separator String"))
+				)
+			),
+			Panel Box("List to search for",
+				window:teb = Text Edit Box(default_txt, << Set Width(tb_width), << Set N Lines(tb_nlines), << Set Function(function({this},
+					this << Set Text(Concat Items(remove_duplicates(this << get text), "\!N"));
+				)))
+			),
+			Panel Box("Actions",
+				Lineup Box(N Col(1),
+					Button Box("Select Rows", << set function(function({this},
+							where_statement = build_where_statement(window:fcs << get selected, window:teb << get text, 
+								window:cb_match_case << get, window:cb_match_entire_cell << get, window:dt
+							);
+							window:dt << Select Where(Eval(where_statement));
+						))
+					),
+					Button Box("Get Script", << set function(function({this},
+							where_statement = build_where_statement(window:fcs << get selected, window:teb << get text, 
+								window:cb_match_case << get, window:cb_match_entire_cell << get, window:dt
+							);
+							If(N Arg(where_statement) > 1,
+								Eval(EvalExpr(Set Clipboard(Expr(Char(Name Expr(where_statement))))));
+							,
+								Eval(EvalExpr(Set Clipboard(Expr(Name Expr(where_statement)))));
+							);
+							
+						))
+					),
+					Button Box("Close", << set function(function({this},
+						(this << top parent) << close window;
+					)))
+				)
+			)
+		)
+	)
+	, << Set Window Icon("JMP")
+);
+
+/*
+dt
+col_list
+search_string
+match_case
+match_entire_cell
+*/
+
+Write();
+
+/*
+change_settings = Method({},
+	set_defaults = 0;
+	order_settings = {"Order Columns Within Selection", "Order Columns and Group to First Selected"};
+	default_behaviour = {"JMP Default", "Throw Error"};
+	nw = New Window("Settings for Order Selected Columns", <<modal, Suppress AutoHide(1), Show Toolbars(0), << return result, << Set Window Icon("Gear"),
+		V List Box(
+			Panel Box("",
+				Lineup Box(N Col(1),
+					Spacer Box(Size(100,1), Color("Gray")),
+					Text Box("Ordering behaviour:"),
+					rb_order = Radio Box(order_settings, << Set(order_within_selection + 1)),
+					Spacer Box(Size(100,1), Color("Gray")),
+					Text Box("Behaviour when no columns selected"),
+					rb_default = Radio Box(default_behaviour, << Set(If(no_selection_behaviour == "JMP", 1, 2))),
+					Spacer Box(Size(100,1), Color("Gray")),
+					H List Box(
+						cb_order = Check Box({""}, << Set(1, save_original_order_as_table_script)),
+						Text Box("Save Table Script With Previous Order")
+					),
+					Spacer Box(Size(100,1), Color("Gray")),
+				)
+			),
+			Lineup Box(N Col(3),
+				ok_btn = Button Box("OK"),
+				Button Box("Cancel"),
+				Button Box("Set Default Settings",
+					set_defaults = 1;
+					order_within_selection = 1;
+					no_selection_behaviour = "JMP";
+					save_original_order_as_table_script = 0;
+					ok_btn << Click;
+				);
+			)
+		)
+	);
+	If(nw["Button"] == 1,
+		If(set_defaults == 0,
+			order_within_selection = nw["rb_order"] - 1;
+			no_selection_behaviour = Word(1, default_behaviour[nw["rb_default"]]);
+			save_original_order_as_table_script = 1;
+		);
+		new_settings = Associative Array();
+		new_settings["order_within_selection"] = order_within_selection;
+		new_settings["no_selection_behaviour"] = no_selection_behaviour;
+		new_settings["save_original_order_as_table_script"] = save_original_order_as_table_script;
+
+		If(!IsMissing(settings_path),
+			Try(Save Text File(settings_path, As JSON Expr(new_settings), mode("replace")));
+		);
+	);
+);
+*/

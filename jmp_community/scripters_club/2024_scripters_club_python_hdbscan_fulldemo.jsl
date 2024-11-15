@@ -1,0 +1,161 @@
+/*""" Demo how to combine Multivariate Embedding from JMP with hdbscan of Python 
+
+Author: jthi
+Creation Date: 2024-06-19
+Creation JMP Version: JMP Pro 18.0.0
+
+Description: Demo how to combine Multivariate Embedding from JMP with hdbscan of Python.
+	Still missing many features and some features are a bit buggy
+
+Todo:
+    * Fix column group creation
+    * Clean code
+    * Split to different .jsl and .py file(s)
+	
+"""*/
+
+Names Default To Here(1);
+dt = Open("$SAMPLE_DATA/Iris.jmp");
+
+If(N Table() == 0,
+	Throw("No tables open");
+);
+
+If(JMP Product Name() != "Pro",
+	Throw("JMP Pro required for this example!");
+);
+
+Python Submit("\[
+import hdbscan
+import jmp
+import numpy as np
+import pandas as pd
+]\");
+
+
+run_dimension_reduction = Expr(
+	collist = clb << Get Items;
+	dim_method = cb_method << get selected;
+	
+	obj = dt << Multivariate Embedding(
+		Y(Eval(collist)),
+		Method(dim_method),
+		Invisible
+	);
+	old_cols = Associative Array(dt << Get Column Names("String"));
+	obj << Save Embedding Component Values;
+	obj << close window;
+	new_cols  = Associative Array(dt << Get Column Names("String"));
+	new_cols << Remove(old_cols);
+
+	cluster_cols = new_cols << get keys;
+);
+
+run_clustering = Expr(
+	clustersize = neb_clustersize << get;
+	samples = neb_samples << get;
+	epsilon = neb_epsilon << get;
+
+	Python Send(dt);
+	Python Send(cluster_cols);
+	Python Send(clustersize);
+	Python Send(samples);
+	Python Send(epsilon);
+	
+	Python Submit("\[
+import hdbscan
+import jmp
+import numpy as np
+import pandas as pd
+
+df = pd.DataFrame()
+for colname in cluster_cols:
+	df[colname] = np.array(dt[colname])
+
+clusterer = hdbscan.HDBSCAN(min_cluster_size=int(clustersize), min_samples=int(samples), cluster_selection_epsilon=epsilon)
+cluster_labels = clusterer.fit_predict(df)
+
+df['Clusters'] = cluster_labels
+col = dt.new_column("CLUSTERS", jmp.DataType.Numeric, jmp.ModelingType.Nominal)
+dt[col.name] = list(df.iloc[:,2])
+new_col = col.name
+
+del df]\");
+
+	newcolname = Python Get(new_col);
+	new_cols = Insert(cluster_cols, newcolname);
+	dt << Group Columns("CLUSTERING", new_cols);
+	Column(dt, newcolname) << Set Property("Notes", Eval Insert("clustersize = ^clustersize^
+samples = ^samples^
+epsilon = ^epsilon^"
+	));	
+);
+
+create_plot = Expr(
+	gb = dt << Graph Builder(
+		Size(800, 600),
+		Show Control Panel(0),
+		Variables(X(Eval(cluster_cols[1])), Y(Eval(cluster_cols[2])), Overlay(Eval(newcolname))),
+		Elements(Points(X, Y, Legend(3)), Ellipse(X, Y, Legend(9)))
+	);
+	gb << Save Script to Data Table("CLUSTERING");
+);
+
+
+nw = New Window("HDBScan Clustering", Show Toolbars(0), Show Menu(0),
+	tb = Tab Box(
+		tpb = Tab Page Box("Selectors",
+			fcs = Filter Col Selector(Datatable(dt),
+				<< Nominal(0)
+				, << Ordinal(0)
+			)
+			, << Set Base Font("Title")
+		),
+		Tab Page Box("Inputs",
+			Lineup Ruler Box(
+				Widths({120, 200}),
+				Panel Box("Dimension Reduction",
+					Lineup Box(N Col(2),
+						Button Box("Add", << Set function(function({this}, (this << sib) << Append(fcs << get selected)))),
+						clb = Col List Box(Datatable(dt)),
+						Text Box("Reduction Method"),
+						cb_method = Radio Box({"UMAP", "t-SNE"})
+					)
+				),
+				Panel Box("Clustering",
+					Lineup Box(N Col(2),
+						Text Box("Min Cluster Size"),
+						neb_clustersize = Number Edit Box(20, << Set Tip("Minimum number of neighbours to a core point. The higher this is, the more points are going to be discarded as noise/outliers.")),
+						Text Box("Min Samples"),
+						neb_samples = Number Edit Box(5, << Set Tip("Minimum size a final cluster can be. The higher this is, the bigger your clusters will be.")),
+						Text Box("Cluster Epsilon"),
+						neb_epsilon = Number Edit Box(0.1, << Set Tip("Radius to look around each point.")),
+					)
+				)
+			),
+			, << Set Base Font("Title")
+		),
+		Tab Page Box("Actions",
+			Lineup Box(N Col(1),
+				Button Box("OK",
+					run_dimension_reduction;
+					run_clustering;
+					create_plot;
+					
+					If(!(cb_keepdialog << get),
+						nw << close window;
+					);	
+				),
+				Button Box("Cancel",
+					nw << close window;
+				),
+				cb_keepdialog = Check Box({"Keep Dialog"}, << Set All(1))
+			)
+			, << Set Base Font("Title")
+		)
+	, << Set Style("Horizontal Spread")
+	)
+	, << Set Window Icon("Python")
+);
+
+Write();

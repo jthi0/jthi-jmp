@@ -1,0 +1,96 @@
+Names Default To Here(1);
+
+calculate_bin_info = function({dt, colname}, {Default Local},
+	aa_info = Associative Array();
+	
+	colref = Column(dt, colname);
+
+	aa_info["bin_count"] = Ceiling(Sqrt(N Rows(dt)));
+	aa_info["data_max"] = Col Max(colref);
+	aa_info["data_min"] = Col Min(colref);
+	aa_info["data_range"] =  aa_info["data_max"] - aa_info["data_min"];
+	aa_info["bin_width"] = aa_info["data_range"]/aa_info["bin_count"];
+
+	aa = Associative Array();
+	For Each Row(dt,
+		cur_bin = If(
+			colref[] < aa_info["data_min"], 
+				aa_info["data_min"];
+			, colref[] >= aa_info["data_max"], 
+				aa_info["data_max"];
+			,
+				aa_info["bin_width"] * Floor(colref[] / aa_info["bin_width"])
+		);
+		If(!Contains(aa, char(cur_bin)),
+			aa[char(cur_bin)] = 1;
+		,
+			aa[char(cur_bin)]++;
+		);
+	);
+
+
+	bins = Transform Each({{key, val}}, aa, Output("List"), Num(key));
+	bins = Matrix(bins);
+	rbins = Rank(bins);
+	bins = bins[rbins];
+	freq = (aa << get values)[rbins];
+	
+	aa_info["bins"] = bins;
+	aa_info["freq"] = freq;
+	
+	aa_info["total"] = Sum(bins :* freq);
+	
+	return(aa_info);
+);
+
+plot_histogram = function({histogram_collector, aa_bins, colname, lowval, highval}, {Default Local},
+	Try((histogram_collector << child) << Delete Box);
+	Eval(EvalExpr(
+		histogram_collector << Append(histogram = Graph Box(
+			Frame Size(frame_width, frame_height),
+			X Name(colname),
+			X Scale(Expr(aa_bins["data_min"]) - Expr(aa_bins["data_max"]) * 0.05, Expr(aa_bins["data_max"]) * 1.05),
+			Y Axis(Scale ID(1), Side(1), Min(0), Max(Max(aa_bins["freq"]) * 1.05)),
+			Y Axis(Scale ID(2), Side(2), Min(0), Max(aa_bins["data_max"] / Sum(aa_bins["bins"]) * 1.05)),
+			Pen Color("Black"),
+			Transparency(0.5),
+			For (i = 1 , i < Expr(nrow(aa_bins["bins"])), i++,
+				If(Expr(aa_bins["bins"])[i] + Expr(aa_bins["bin_width"]) > Expr(lowval) & Expr(aa_bins["bins"])[i] < Expr(highval),
+					Fill Color("Blue");
+				,
+					Fill Color("Red");
+				);
+				Rect(Expr(aa_bins["bins"])[i], Expr(aa_bins["freq"])[i], Expr(aa_bins["bins"])[i + 1], 0, 1);
+			);
+			Pen Color("Black"),
+			Transparency(1),
+			For(i = 1, i < Expr(N Row(aa_bins["bins"])), i++,
+				Rect(Expr(aa_bins["bins"])[i], Expr(aa_bins["freq"])[i], Expr(aa_bins["bins"])[i + 1], 0, 0)
+			)
+		));
+	));
+	
+	histogram << Set Y Name("Frequency", 1);
+	histogram << Set Y Name("Probability", 2);
+	histogram[AxisBox(2)] << Format("Percent", 15, 2) << Inc(0.001);
+	histogram[TextEditBox(1)] << Rotate Text("Left");
+	histogram[TextEditBox(2)] << Rotate Text("Right");
+
+	histogram[AxisBox(1)] << Show Minor Grid(1);
+	histogram[AxisBox(1)] << Show Major Grid(1);
+	Eval(EvalExpr(
+		histogram[FrameBox(1)] << Add Graphics Script(
+			Pen Size(3);
+			Pen Color("Blue");
+			V Line(Expr(lowval));
+			V Line(Expr(highval));
+		);
+	));
+);
+
+
+update_certainty = function({tb_ref, aa_bins, lowval, highval}, {Default Local},
+	val_idx = Loc(lowval < aa_bins["bins"] < highval);
+	cert_perc = Round(100 * Sum((aa_bins["bins"]:* aa_bins["freq"])[val_idx]) / aa_bins["total"], 2);
+	tb_ref << Set Text(Char(cert_perc) ||"%");	
+);

@@ -1,0 +1,72 @@
+﻿Names Default To Here(1);
+
+script_title = "My Script " || Char(Today());
+
+creationdate = Format(Today(), "Format Pattern", "<YYYY>-<DD>-<MM>");
+jmpinfo = "JMP " || JMP Product Name() || " " || JMP Version();
+username = If(Host is("Mac"),
+	Get Environment Variable("USER")
+,
+	Get Environment Variable("USERNAME");
+);
+
+script_header = "\[/*"""One sentence function description.
+
+Author: ¤username¤
+Creation Date: ¤creationdate¤
+Creation JMP Version: ¤jmpinfo¤
+
+Description: 
+
+Todo:
+    * 
+    * 
+	
+"""*/
+]\";
+header = Eval Insert(script_header, "¤") || "\!N";
+
+script_start = "\[Names Default To Here(1);
+	
+]\";
+
+initial_script = header || script_start;
+
+nw = New Window(script_title, <<Type("Script"), initial_script);
+
+
+
+Names Default To Here(1);
+/* CTRL + R */
+/* Should save last 10 */
+
+items_to_keep = 10;
+cur_window = Current Window();
+window_type = cur_window << window class name;
+
+If(window_type != "Script",
+	stop();
+);
+
+window_title = cur_window << Get Window Title();
+
+save_dir = "$TEMP/better_script/" || window_title || "/";
+If(!Directory Exists(save_dir),
+	Create Directory(save_dir)
+);
+
+
+sb = cur_window[Script Box(1)];
+script_text = sb << Get Text;
+
+Save Text File(save_dir || Char(Today()) ||"_"||window_title ||".jsl", script_text);
+
+Open(save_dir);
+// sb << run;
+
+// run first and then delete older scripts...
+files = Files In Directory(save_dir);
+
+files_removed = Remove From(files , 1, N Items(files) - items_to_keep);
+
+Write("\!NRemoved old script files: ", files_removed);

@@ -1,0 +1,16 @@
+Names Default To Here(1);
+
+included_color = "Red";
+excluded_color = "Blue";
+line_color = "Black";
+line_width = 2;
+ypercent_inc = 0.001;
+plot_guardband_multiplier = 0.05;
+slider_guardband_multiplier = plot_guardband_multiplier - 0.01; // will prevent slider going hidden
+graph_width = 1200;
+graph_height = 500;
+
+// Default values for range slider box padding, used to make it same size as frame box
+	// Currently using spacer box, maybe paddin would also work?
+left_padding = 56;
+right_padding = 70;

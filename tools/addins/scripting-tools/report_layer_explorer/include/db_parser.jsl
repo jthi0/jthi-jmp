@@ -1,0 +1,58 @@
+﻿/*"""One sentence function description.
+
+Author: 
+Creation Date: 
+Creation JMP Version: 
+
+Description: 
+
+Todo:
+    * 
+    * 
+	
+"""*/
+
+Names Default To Here(1);
+
+Include("../config/rle_config.jsl");
+
+traverse_display_tree_objects = Function({db}, {Default Local},
+	/*""" Traverse report layer and create tree box from different objects
+	
+	Args:
+		param1 (displaybox):
+	
+	Returns:
+		Tree Box
+	"""*/
+	db_name = Char(db << class name);
+	new_node = create_node(db_name, db, db_name, "");
+	cur_node << Append(new_node);
+	
+	childdb = db << child;
+	If(!Is Empty(childdb),
+		cur_node = new_node;
+	,
+		cur_node = cur_node << parent;
+	);
+	While(Is Scriptable(childdb),
+		Recurse(childdb);
+		childdb = childdb << sib;
+
+	);
+);
+
+create_tree_box_report_layer = function({top_level_db}, {Default Local},
+	db_name = top_level_db << class name;
+	root = Tree Node(db_name);
+	root << Set Data(top_level_db);
+
+	cur_node = root;
+	traverse_display_tree_objects(db << child);
+	
+	tb = Tree box(root, Size(TREE_WIDTH, TREE_HEIGHT));
+	
+	return(tb);
+);
+
+Write();

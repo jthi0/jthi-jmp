@@ -1,0 +1,146 @@
+/*""" Cellular Automaton using Rule 30
+
+Author: jthi
+Creation Date: 2024-05-19
+Creation JMP Version: JMP Pro 17.2
+
+Description: Cellular automaton rule 30 using JSL matrices and New Image with frames.
+	
+"""*/
+
+Names Default To Here(1);
+
+xor = Function({first, second}, {Default Local},
+	return((first | second) & !(first & second));
+);
+
+check_rule30 = function({items}, {Default Local},
+	// https://en.wikipedia.org/wiki/Rule_30
+	res = xor(items[1], items[2] | items[3]);
+	
+	return(res);
+);
+
+initial_state = function({width}, {Default Local},
+	m = J(Floor(width / 2) + 1, width + !Mod(width, 2), 0);
+	m[1, Floor(width / 2) + 1] = 1;
+
+	return(m);
+);
+
+
+cellular_automaton_rule30 = function({width}, {Default Local},
+	m = initial_state(width);
+	
+	For(r = 2, r <= N Rows(m), r++,
+		For(c = 1, c <= N Cols(m[r, 0]), c++,
+			If(c == 1, // fill [0] for edges
+				three = [0] || m[r - 1, c::c + 1];
+			, c == N Cols(m[r, 0]),
+				three = m[r - 1, c - 1::c] || [0];
+			,
+				three = m[r - 1, c - 1::c + 1];
+			);
+			
+			res = check_rule30(three);
+			
+			m[r, c] = res;
+		);
+	);
+	
+	return(m);
+);
+
+magnify_matrix = function({m, magnification = 1}, {Default Local},
+	If(magnification == 1,
+		return(m);
+	);
+	
+	magnified = J(N Rows(m) * magnification, N Cols(m) * magnification);
+
+	magnified = Transform Each({z, {row, col}}, magnified, 
+		// and filling each value with one from the small matrix
+		m[Floor((row - 1) / magnification) + 1, Floor((col - 1) / magnification) + 1]
+	);
+	
+	return(magnified);
+);
+
+
+animate_matrix = Function({m_magnified}, {Default Local},
+	// Substitute Into(m_magnified, 1, -16777215); // to make white white
+	start = Tick Seconds();
+
+	initial = J(N Row(m_magnified), N Col(m_magnified), 0);
+	initial[1::magnification, 0] = Substitute(m_magnified[1::magnification, 0], 1, -16777215);
+
+	img = New Image(initial);
+	For(i = 1, i < N Rows(m), i++,
+		indices = (i * magnification + 1)::((i + 1) * magnification);
+		cur_row = m_magnified[indices, 0];
+		
+		If(i == N Rows(m) - 1, // could be moved outside of the loop
+			Substitute Into(cur_row, 1, -16777215);
+		,
+			Substitute Into(cur_row, 1, -65280);
+		);
+		Substitute Into(cur_row, 1, -65280);
+		Substitute Into(initial, -65280, -16777215);
+		
+		initial[indices, 0] = cur_row;
+		img << Add Frame(10);
+		img << Set Pixels(initial);
+	);
+	wait(0);
+	end = Tick Seconds();
+	Write(Eval Insert("animate_matrix: ^Round(end - start, 3)^s.\!N"));
+
+	nw = New Window("Multi-Frame Image", img);
+	durs = img << Get Frame Durations();
+	For(i = 0, i < img << Get N Frames, i++, // might be off by one
+		img << Set Current Frame(i);
+		nw << reshow();
+		dur = durs[i + 1] / 800.0; // use to modify the speed of animation
+		Wait(dur);
+	);
+	
+	return(img);
+);
+
+
+view_matrix = function({m}, {Default Local},
+	nw = New Window("Matrix",
+		pic = New Heat Image(m,
+			gradient({Color Theme("White to Black"), Scale Values([0 1]), Reverse Gradient(1)})
+		)
+	);
+);
+
+width = 250;
+magnification = 5;
+
+start = Tick Seconds();
+m = cellular_automaton_rule30(width);
+wait(0);
+end = Tick Seconds();
+Write(Eval Insert("cellular_automaton_rule30: ^Round(end - start, 3)^s.\!N"));
+
+start = Tick Seconds();
+m_magnified = magnify_matrix(m, magnification);
+wait(0);
+end = Tick Seconds();
+Write(Eval Insert("magnify_matrix: ^Round(end - start, 3)^s.\!N"));
+
+animation = animate_matrix(m_magnified);
+wait(0);
+
+Write("Done\!N");
+
+// view_matrix(m_magnified);
+/*
+animation << Save Image("$TEMP/rule30_cellular_automaton.gif", "gif");
+Web("$TEMP/rule30_cellular_automaton.gif");
+m = .;
+m_magnified = [];
+*/
+Write("");

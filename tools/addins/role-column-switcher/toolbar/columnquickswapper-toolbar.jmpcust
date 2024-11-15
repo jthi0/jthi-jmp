@@ -1,0 +1,23 @@
+﻿<jm:menu_and_toolbar_customizations xmlns:jm="http://www.jmp.com/ns/menu" version="3">
+  <jm:insert_in_main_menu>
+    <jm:insert_in_menu>
+      <jm:name>EDIT</jm:name>
+      <jm:customization target="COMMENT BLOCK">
+        <jm:accel>Ctrl+OemQuotes</jm:accel>
+      </jm:customization>
+      <jm:customization target="UNCOMMENT BLOCK">
+        <jm:accel>Ctrl+Shift+OemQuotes</jm:accel>
+      </jm:customization>
+    </jm:insert_in_menu>
+  </jm:insert_in_main_menu>
+  <jm:toolbar>
+    <jm:name>ADD-INS</jm:name>
+    <jm:caption>Toolbars created from add-ins</jm:caption>
+    <jm:command>
+      <jm:name>QUICK SWAPPER</jm:name>
+      <jm:caption>Quick Swapper</jm:caption>
+      <jm:action type="path">$ADDIN_HOME(jthi.column.quick.swapper)\column_quick_swapper.jsl</jm:action>
+      <jm:icon type="builtin">LayoutPeel</jm:icon>
+    </jm:command>
+  </jm:toolbar>
+</jm:menu_and_toolbar_customizations>

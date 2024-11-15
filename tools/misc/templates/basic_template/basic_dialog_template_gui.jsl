@@ -1,0 +1,119 @@
+Names Default To Here(1);
+
+//Get utility functions
+Include("gui_utilities.jsl"); //or copy them directly here to make more standalone
+
+//setup default settings
+default_settings = ["GUI" => ["use_gui" => 1,"window_title" => "test window", "window_icon" => "NewApplication"]];
+//load settings from file and get "final settings"
+aa_settings = load_settings(default_settings, settings_file_name = "settings.json");
+
+//check if the table is already open
+check_open_window(aa_settings["GUI"]["window_title"]);
+
+//check if any tables are open and set current datatable() as dt
+dt = check_data_tables();
+
+Include("basic_dialog_template.jsl");
+
+//modify validator function if needed
+validator = function({vals_to_check = 1}, {Default Local},
+	error_list = {};
+	If(vals_to_check == 1,
+		Insert Into(error_list, "vals_to_check is " || char(vals_to_check));
+	);
+	If(N Items(error_list) > 0,
+		mini_modal_window("Error", Concat Items(error_list, "\!N"), text_icon = "Error", window_icon = "ErrorSmall");
+		return(0);
+	);
+	return(1);
+);
+
+//modify run_expr which is executed when run button is pressed
+run_expr = Expr(
+	nw_aa = get_nw_values(Current Window());
+	validator_value = validator();
+	If(validator_value,
+		//run scripts...
+		//run scripts...
+		window:nw << Close Window;
+	);
+);
+
+nw = New Window(aa_settings["GUI"]["window_title"], << show toolbars(0), << show menu(0),
+	<<Set Window Icon(aa_settings["GUI"]["window_icon"]),
+	V List Box(align("right"),
+		Spacer Box(Size(0, 5)),
+		Border Box(Sides(15), H Center Box(H List Box(
+			Text Box("Basic Dialog Template"),
+			Button Box("", << Set Icon("NewModule"), << Set Tip("Open script in script editor")),
+			Button Box("", << Set Icon("Gear"), << Set Tip("Open settings.json")),
+			Button Box("", << Set Icon("WinFileOpen"), << Set Tip("Open script directory")),
+			Button Box("", << Set Icon("WinHelpAbout"), << Set Tip("Open readme.html")),
+			//Button Box("", << Set Icon("ActivateDataTable")),
+		))),
+		Spacer Box(Size(0, 5), Color("Gray")),
+		Border Box(Sides(15), H Center Box(H List Box(
+			Text Box("Current Data Table(): ", << Font Color("Blue")),
+			MouseBox(tb_dt = Text Box((Current Data Table() << get name),<< Font Color("Blue"), << Set Font Style("Bold")),
+				<<setTooltip("Click to bring datatable to front"),
+				<<setClickEnable(1),
+				<<SetClick(
+					function({this, clickpt, event},
+						If(event == "Released",
+							Datatable(tb_dt << get text) << Bring Window To Front();
+						)
+					)
+				)
+			)
+		))),
+		H List Box(
+			V List Box(
+				Panel Box("Select Columns", flc = Filter Col Selector(dt, nlines(10))),
+				((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+				Panel Box("Options",
+					Lineup Box(N Col(2),
+						Text Box("Change threshold"), neb = Number Edit Box(0),
+						Text Box("Sample rate"), teb = Text Edit Box(""),
+						Text Box("Continuous Transform"), cb = Check Box({""}),
+						Text Box("Continuous Transform1"), cb = Check Box({""}),
+						Text Box("Do/Dont"), cb = Radio Box({"Do", "Dont"}),
+						Text Box("2Do/2Dont"), cb = Radio Box({"2Do", "2Dont"}),
+					)
+				)
+			),
+			Panel Box("Cast Selected Columns",
+				Lineup Box(N Col(2),
+					Button Box("Add, X",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(5)),
+					Button Box("Add, Y",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(2)),
+					Button Box("Clear Selection",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Clear Selection;
+						))
+					),
+					Button Box("Remove Selected",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Remove Selected;
+						))
+					),
+				)
+			)
+		),
+		H List Box(
+			btn = Button Box("Run"),
+			Button Box("Close",
+				Current Window() << Close Window;
+			)
+		)
+	)
+);

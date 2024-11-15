@@ -1,0 +1,4 @@
+Names Default To Here(1); 
+
+dt = open("$SAMPLE_DATA/Big Class.jmp");
+

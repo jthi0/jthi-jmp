@@ -1,0 +1,5 @@
+Names Default To Here(1);
+
+basic_function = function({}, {Default Local},
+	Caption("Basic");
+);
