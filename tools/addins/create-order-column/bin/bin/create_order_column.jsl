@@ -1,0 +1,44 @@
+Names Default To Here(1);
+
+create_ordering_column = function({dt = Current Data Table(), int_hide = 1, int_exclude = 1, order_col_name = "_OrigOrder_"}, {Default Local},
+/*************************************************************************
+	Function: create_ordering_column
+		---Prototype---
+		create_ordering_column(datatable dt, int int_hide, int int_exclude, str order_col_name)
+		---------------
+		Function to create ordering column based on curent order of the datatable
+
+	Returns:
+		Reference to new column
+
+	Prototype:
+		> create_ordering_column(dt, <int_hide = 1>, <int_excluide = 1>, <order_col_name = "_OrigOrder_">)
+
+	Parameters:
+		dt - reference to datatable
+		int_hide - 0/1 to determine if column should be hidden by default
+		int_exclude - 0/1 to determine if column should be excluded by default
+		order_col_name - Name for the created column
+
+	Examples:
+		----------JSL-----------
+		------------------------	
+*************************************************************************/
+	note_str = "Ordering for " || (dt << Get Name) || " " ||Char(AsDate(Today()));
+	row_col = dt << New Column(order_col_name, Numeric, "Ordinal", Set Property("Notes", note_str), Hide(int_hide == 1), Exclude(int_exclude == 1),
+		<< Set Each Value(Row())
+	);
+	order_col_name_idx = row_col << get name;
+	col_idx = Word(2,order_col_name_idx);
+	If(col_idx == "",
+		dt << Move Selected Columns(row_col, To First);
+	, col_idx == "2",
+		dt << Move Selected Columns(row_col, After(Column(order_col_name)));
+	, //else
+		prev_order_col_name = order_col_name || char(Num(col_idx) - 1);		
+		dt << Move Selected Columns(row_col, After(Column(prev_order_col_name)));
+	);
+	return(row_col);
+
+);
+Write();

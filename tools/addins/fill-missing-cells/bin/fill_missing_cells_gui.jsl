@@ -1,0 +1,235 @@
+Names Default To Here(1);
+
+//Get utility functions
+Include("bin/gui_utilities.jsl"); //or copy them directly here to make more standalone
+FMC = Include("bin/FillMissingCells.jsl");
+//setup default settings
+default_settings = ["GUI" => ["use_gui" => 1,"window_title" => "Fill Missing Cells", "window_icon" => "DebuggerStepInto", "keep_dialog_open" => 0], 
+"data_sorted" => 1, "default_fill" => "backward", "default_unknown" => 1, "default_new_column" => 1, "default_max_distance" => .];
+
+//load settings from file and get "final settings"
+aa_settings = load_settings(default_settings, settings_file_name = "settings.json");
+
+//check if the table is already open
+check_open_window(aa_settings["GUI"]["window_title"]);
+
+//check if any tables are open and set current datatable() as dt
+dt = check_data_tables();
+
+fill_options = {"backward", "forward", "nearest", "nearest-backward", "nearest-forward", "interpolate"};
+init_fill = Contains(fill_options, aa_settings["default_fill"]);
+
+sorted_options = {"Unknown", "Not-sorted", "Sorted"};
+init_sorted = Contains(sorted_options, aa_settings["data_sorted"]);
+
+//modify validator function if needed
+validator = function({col_fill}, {Default Local},
+	error_list = {};
+	If(N Items(col_fill) < 1,
+		Insert Into(error_list, "No columns selected for filling");
+	);
+	If(N Items(error_list) > 0,
+		mini_modal_window("Error", Concat Items(error_list, "\!N"), text_icon = "Error", window_icon = "ErrorSmall");
+		return(0);
+	);
+	return(1);
+);
+
+//modify run_expr which is executed when run button is pressed
+run_expr = Expr(
+	cur_nw = Current Window();
+	nw_aa = get_nw_values(cur_nw);
+	col_sort = nw_aa["clbs"][1];
+	col_fill = nw_aa["clbs"][2];
+	col_group = nw_aa["clbs"][3];
+	
+	keep_dialog = nw_aa["cbs"][1];
+	data_sorted = nw_aa["rbs"][1];
+	
+	max_distance = nw_aa["nebs"][1];
+
+	n_cols_to_fill = N Items(col_fill);
+
+	//Possibly add progressbar if slowish?
+	If(validator(col_fill),
+		For Each({value, idx}, col_fill, 
+			fill_type_selected = (tb << XPath("//TableBox/ColBox/ComboBox"))[idx] << Get Selected;
+			fill_unk = (tb << XPath("//TableBox/ColBox/CheckBoxBox"))[idx] << get;
+			new_col = (tb << XPath("//TableBox/ColBox/CheckBoxBox"))[n_cols_to_fill + idx] << get;
+			
+			//how to easily create "perfect" copy of column?
+			If(new_col == 1,
+				temp_col = dt << New Column(value||"_"||fill_type_selected); //copy column properties from original one?
+				//temp_col << Column(dt, value) << get column properties;
+				temp_col << Set Modeling Type(Column(dt, value) << Get Modeling Type);
+				temp_col << Set Data Type(Column(dt, value) << Get Data Type);
+				temp_col << Set Format(Column(dt, value) << Get Format);
+				dt << Move Selected Columns(temp_col, After(Column(dt, value)));
+				dt[0, temp_col << get name] = dt[0, value];
+				value = temp_col << get name;
+			);
+			
+			//{"backward", "forward", "nearest", "nearest-backward", "nearest-forward", "interpolate"}
+			
+			funcExpr =  Eval Expr(FMC:fill_missing_cells(Expr(dt), Expr(value), Expr(col_sort), Expr(col_group), Expr(fill_type_selected), Expr(data_sorted - 2), Expr(max_distance), Expr(fill_unk)));
+			/*
+			Choose(Contains(fill_options, fill_type_selected),
+			//"Fill-Down"
+				FMC:fill_missing_cells({Expr(dt), Expr(value), Expr(col_sort), Expr(col_group)}, Expr(fill_type_selected), Expr(data_sorted - 2), Expr(max_distance), Expr(fill_unk));
+
+				funcExpr = Eval Expr(simple_fill(Expr(value), Expr(Eval List(group_by)), Expr(current data table()), "down", Expr(fill_unk)));
+			,//"Fill-Up", 
+				funcExpr = Eval Expr(simple_fill(Expr(value), Expr(Eval List(group_by)), Expr(current data table()), "up", Expr(fill_unk)));
+			,//"Closest-Smaller", 
+				funcExpr = Eval Expr(nearest_fill(Expr(value), Expr(sort_by), Expr(Eval List(group_by)), Expr(current data table()), "smaller"));
+			,//,"Closest-Larger", 
+				funcExpr = Eval Expr(nearest_fill(Expr(value), Expr(sort_by), Expr(Eval List(group_by)), Expr(current data table()), "larger"));
+			,//"Interpolate" 
+				funcExpr = Eval Expr(interpolate_fill(Expr(value), Expr(sort_by), Expr(Eval List(group_by)), Expr(current data table())));
+			);
+			);*/
+			Print(funcExpr);
+			Eval(funcExpr);
+		);
+		If(keep_dialog == 0,
+			cur_nw << Close Window;	
+		);
+	);
+);
+
+build_column_type_icon = function({col_ref}, 
+	{Default Local},
+	return(
+		H List Box(
+			Icon Box(col_ref << Get Data Type||"Column"),
+			Icon Box(col_ref << Get Modeling Type)
+		)
+	)
+);
+
+add_rows_to_tb = Expr(
+	cur_vals = scb << get; //scb stringcolbox in the tablebox
+	sel_vals = clb_fill << get items; //columns which are to be filled
+	
+	//if found from cur_vals and in setVals, leave it
+	//if not found from cur_vals, leave it
+	//if found from cur_vals, but not from sel_vals -> remove	
+	For Each({value}, sel_vals, 
+	
+		//here we have to check for column data type and modeling type
+		//depending on those we choose how to fill rows and what to disable
+		currentDataType = Column(dt, value) << Get Data Type;
+		currentModelingType = Column(dt, value) << Get Modeling Type;
+
+		//disable Interpolate option if column isn't numeric
+		If(currentDataType != "Numeric",
+			fill_row = Remove(fill_options, Contains(fill_options, "Interpolate")),
+			fill_row = fill_options;
+		);
+		
+		If(currentDataType == "Numeric" & currentModelingType == "Continuous",
+			comboBox_row = Contains(fill_options, "interpolate"),
+			comboBox_row = init_fill;
+		);
+		
+		If(!Contains(cur_vals, value), 
+			Eval(EvalExpr(tb << Add Row({
+				build_column_type_icon(Column(dt, value)),
+				value,  //column name
+				Combo Box(fill_row, << Set(comboBox_row),
+					<< Set Function(Function({this},
+						((this << parent) << parent)[ColBox(3)][Contains((((this << parent) << parent)[StringColBox(1)]) << get, Expr(value))] << Enabled(Contains Item(this << get text, {"backward", "forward"}));
+						((this << parent) << parent)[ColBox(3)][Contains((((this << parent) << parent)[StringColBox(1)]) << get, Expr(value))] << Set All(Contains Item(this << get text, {"backward", "forward"}) & Expr(aa_settings["default_unknown"]));
+					));
+				),  //combo box
+				Check Box({""}, << Enabled(Contains Item(fill_row[comboBox_row], {"backward", "forward"})), << Set All(Contains Item(fill_row[comboBox_row], {"backward", "forward"}) & Expr(aa_settings["default_unknown"]))), 
+				Check Box({""}, <<Set(aa_settings["default_new_column"]))} //new column
+			)))
+		);
+	);
+	//cb_test << Get Function
+	For Each({value}, cur_vals,
+		If(!Contains(sel_vals, value),
+			tb << Delete Row(Contains(scb << get, value)); //have to be updated every loop because index might change
+		)
+	);
+);
+
+nw = New Window(aa_settings["GUI"]["window_title"], << show toolbars(0), << show menu(0),
+	<<Set Window Icon(aa_settings["GUI"]["window_icon"]),
+	V List Box(align("right"),
+		Border Box(Sides(15), H Center Box(H List Box(
+			Text Box("Current Data Table(): ", << Font Color("Blue")),
+			MouseBox(tb_dt = Text Box((dt << get name),<< Font Color("Blue"), << Set Font Style("Bold")),
+				<<setTooltip("Click to bring datatable to front"),
+				<<setClickEnable(1),
+				<<SetClick(
+					function({this, clickpt, event},
+						If(event == "Released",
+							Datatable(tb_dt << get text) << Bring Window To Front();
+						)
+					)
+				)
+			)
+		))),
+		H List Box(
+			V List Box(
+				Panel Box("Select Columns", flc = Filter Col Selector(dt, nlines(10))),
+				((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+				Panel Box("Options",
+					Lineup Box(N Col(2),
+						Text Box("Keep Dialog Open"), cb = Check Box({""}, << Set(aa_settings["GUI"]["keep_dialog_open"])),
+						Text Box("Data sorted:"),
+						rb_sorted = Radio Box(sorted_options, << Set(init_sorted)),
+						Text Box("Maximum distance"), Number Edit Box(aa_settings["default_max_distance"]),
+					)
+				)
+			),
+			Panel Box("Cast Selected Columns",
+				Lineup Box(N Col(2),
+					Button Box("Order",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, max items(1), nlines(1), << Modeling Type({"Continuous"})),
+					Button Box("Fill",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					clb_fill = Col List Box(dt, min items(1), nlines(5), <<on change(add_rows_to_tb)),
+					Button Box("Group by",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, nlines(4), << Modeling Type({"Nominal", "Ordinal"})),
+					Button Box("Clear Selection",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Clear Selection;
+						))
+					),
+					Button Box("Remove Selected",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Remove Selected;
+						))
+					),
+				)
+			),
+			tablepb = Panel Box("",
+				Spacer Box(size(375,0)),
+				tb = Table Box(Col Box("Type"), scb = String Col Box("Column", {}), Col Box("Fill Type"), Col Box("Fill Unknown"), Col Box("New Column?"))
+			)
+		),
+		H List Box(
+			btn = Button Box("Run",
+				run_expr;
+			),
+			Button Box("Close",
+				Current Window() << Close Window;
+			)
+		)
+	)
+);
+Write();

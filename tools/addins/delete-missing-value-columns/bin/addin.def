@@ -1,0 +1,5 @@
+id=jthi.jmp.tools.delete.missing.value.columns
+name=JMP-Tools Delete Missing Value Columns
+supportJmpSE=0
+addinVersion=1
+minJmpVersion=16

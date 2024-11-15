@@ -1,0 +1,5 @@
+id=jthi.jmp.tools.create.order.column
+name=JMP-Tools Create Order Column
+supportJmpSE=0
+addinVersion=1
+minJmpVersion=16

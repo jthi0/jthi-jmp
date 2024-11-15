@@ -1,0 +1,128 @@
+Names Default To Here(1);
+
+//Get utility functions
+Include("bin/gui_utilities.jsl"); //or copy them directly here to make more standalone
+Include("bin/group_listagg_columns.jsl");
+
+//setup default settings
+default_settings = ["GUI" => ["use_gui" => 1,"window_title" => "Group Listagg Columns", "window_icon" => "NewApplication", "keep_dialog_open" => 0],
+	"set_multiple_response" => 1,  "column_suffix" => "_LISTAGG"
+];
+//load settings from file and get "final settings"
+aa_settings = load_settings(default_settings, settings_file_name = "settings.json");
+
+//check if the table is already open
+check_open_window(aa_settings["GUI"]["window_title"]);
+
+//check if any tables are open and set current datatable() as dt
+dt = check_data_tables();
+
+//modify validator function if needed
+validator = function({group_cols, concat_cols, col_suffix}, {Default Local},
+	error_list = {};
+	If(N Items(group_cols) < 1,
+		Insert Into(error_list, "Grouping columns cannot be empty.");
+	);
+	If(N Items(concat_cols) < 1,
+		Insert Into(error_list, "Concatenate columns cannot be empty.");
+	);
+	
+	If(col_suffix == "",
+		Insert Into(error_list, "Column suffix cannot be empty");
+	);
+	If(N Items(error_list) > 0,
+		mini_modal_window("Error", Concat Items(error_list, "\!N"), text_icon = "Error", window_icon = "ErrorSmall");
+		return(0);
+	);
+	return(1);
+);
+
+//modify run_expr which is executed when run button is pressed
+run_expr = Expr(
+	cur_nw = Current Window();
+	nw_aa = get_nw_values(cur_nw);
+	group_cols = nw_aa["clbs"][1];
+	concat_cols = nw_aa["clbs"][2];
+	col_suffix = nw_aa["tebs"][1];
+	mult_response = nw_aa["cbs"][1];
+	keep_dialog = nw_aa["cbs"][2];
+	validator_value = validator(group_cols, concat_cols, col_suffix);
+	
+	If(validator_value,
+		new_dt = create_listagg_table(dt, group_cols, concat_cols, col_suffix, mult_response);
+		Print("New table created: " || (new_dt << get name));
+		If(keep_dialog == 0,
+			cur_nw << Close Window;	
+		);	
+	);
+);
+
+nw = New Window(aa_settings["GUI"]["window_title"], << show toolbars(0), << show menu(0),
+	<<Set Window Icon(aa_settings["GUI"]["window_icon"]),
+	V List Box(align("right"),
+		Border Box(Sides(15), H Center Box(H List Box(
+			Text Box("Current Data Table(): ", << Font Color("Blue")),
+			MouseBox(tb_dt = Text Box((Current Data Table() << get name),<< Font Color("Blue"), << Set Font Style("Bold")),
+				<<setTooltip("Click to bring datatable to front"),
+				<<setClickEnable(1),
+				<<SetClick(
+					function({this, clickpt, event},
+						If(event == "Released",
+							Datatable(tb_dt << get text) << Bring Window To Front();
+						)
+					)
+				)
+			)
+		))),
+		H List Box(
+			V List Box(
+				Panel Box("Select Columns", flc = Filter Col Selector(dt, nlines(10), << Continuous(0))),
+				((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+				Panel Box("Options",
+					Lineup Box(N Col(2),
+						Text Box("Suffix"),
+						Text Edit Box(aa_settings["column_suffix"]),
+						Text Box("Multiple response"),
+						Check Box({""}, <<Set(aa_settings["set_multiple_response"])),
+						Text Box("Keep dialog open"),
+						Check Box({""}, <<Set(aa_settings["GUI"]["keep_dialog_open"]))
+					)
+				)
+			),
+			Panel Box("Cast Selected Columns",
+				Lineup Box(N Col(2),
+					Button Box("Group By",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(3), Modeling Type({"Nominal", "Ordinal"})),
+					Button Box("Concat",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(3)),
+					Button Box("Clear Selection",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Clear Selection;
+						))
+					),
+					Button Box("Remove Selected",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Remove Selected;
+						))
+					),
+				)
+			)
+		),
+		H List Box(
+			Button Box("Run",
+				run_expr;
+			),
+			Button Box("Close",
+				Current Window() << Close Window;
+			)
+		)
+	)
+);

@@ -1,0 +1,56 @@
+Names Default To Here(1);
+//https://community.jmp.com/t5/JMP-Wish-List/Add-Listagg-Concatenate-GROUP-CONCAT-to-Summary-platform/idi-p/441070
+//https://community.jmp.com/t5/JMP-Wish-List/Allow-Split-to-create-Multiple-Response-columns/idi-p/440972
+
+create_listagg_table = function({dt, list_group_col, list_concat_col, col_suffix = "_LISTAGG", mult_resp = 1}, {Default Local},
+/*************************************************************************
+	Function: create_listagg_table
+		---Prototype---
+		create_listagg_table(datatable dt, list(str) list_group_col, list(str) list_concat_col, <string col_suffix = "_LISTAGG">, <int mult_resp = 1>)
+		---------------
+		Creates new table with list_concat_col grouped by list_group_col. Grouping done with SQLIOte GROUP_CONCAT command
+		NOTE: For some reason numeric columns get returned as .0 even thou column is casted as TEXT. Might fix in future...
+		
+	Returns:
+		Reference to new table with grouped column
+
+	Parameters:
+		dt -
+		list_group_col - Grouping columns
+		list_concat_col - Columns to concatenate
+		col_suffix - Suffix which be added to end of new columns created
+		mult_resp - Decision of new columns should be made as Multiple Respose or not
+*************************************************************************/
+
+	group_cols = Concat Items(list_group_col, "\!",\!"");
+	
+	concat_cols = Transform Each({col}, list_concat_col,
+		Eval Insert("\[GROUP_CONCAT(DISTINCT CAST("^col^" as TEXT)) as "^col^^col_suffix^"]\");
+	);
+	concat_cols = Concat Items(concat_cols, ", ");
+
+	custom_sql = Eval Insert("\[SELECT "^group_cols^", 
+	^concat_cols^
+	FROM t1
+	GROUP BY "^group_cols^"
+	]\");
+	dt_concat = Query(
+		Table(dt, "t1"),
+		custom_sql
+	);
+	dt_concat << Set Name("Group concatenated " || Concat Items(list_concat_col, ", ") || " by " || Concat Items(list_group_col, ", "));
+	If(mult_resp == 1,		
+		For Each({new_col}, dt_concat << Get Column Names("String"),
+			If(Ends With(new_col,col_suffix),
+				Column(dt_concat, new_col) << Set Modeling Type("Multiple Response");
+			);
+		);
+	);
+	
+	// remove unnecessary table scripts and variables
+	Try(dt_concat << Delete Scripts(dt_concat << Get Table Script Names));	
+	Try(dt_concat << Delete Table Variable("SQL"));
+	
+	return(dt_concat);
+);
+Write();

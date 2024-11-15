@@ -1,0 +1,15 @@
+{
+	"GUI":{
+		"window_title": "Split and Set Specification Limits",
+		"window_icon": "WinSaveScriptToDataTable",
+		"keep_dialog_open": 1
+	},
+	"default_split_by_columns": ["Variable", "Process", "Label"],
+	"default_value_columns": ["Result", "Data", "Value"],
+	"default_grouping_columns": [],
+	"default_lsl_columns": ["MIN", "LSL", "LOWER", "LOWER_LIMIT"],
+	"default_usl_columns": ["MAX", "USL", "UPPER", "UPPER_LIMIT"],
+	"default_target_columns": ["Target"],
+	"show_as_graph_ref_lines": 1,
+	"return_limits_table": 0
+}

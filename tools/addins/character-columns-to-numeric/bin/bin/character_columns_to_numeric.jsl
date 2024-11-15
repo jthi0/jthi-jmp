@@ -1,0 +1,123 @@
+﻿Names Default To Here(1);
+
+num_validator = Function({str}, {Default Local},
+/*************************************************************************
+Function: num_valiodator
+	---Prototype---
+	num_validator(string str)
+	---------------
+	Validator function for numbers due to JMPs Num() function doing more than is desired.
+	See: https://community.jmp.com/t5/Discussions/JSL-Feature-or-Bug/m-p/452695
+
+
+Returns:
+	Missing or number
+
+Prototype:
+	> num_valiodator(str string)
+
+Parameters:
+	str - String to validate
+
+Examples:
+	----------JSL-----------
+	Show(num_validator("-1"));
+	Show(num_validator("£1"));
+	------------------------	
+*************************************************************************/
+	regex_validator_string = "^[-\+]{0,1}[0-9\.\,]+$";
+	If(Is Missing(Regex(str, regex_validator_string)),
+		retval = .; //use missing as non match due to num returning . in case of non-numeric
+	, //else
+		retval = Num(str)
+	);
+	return(retval);
+);
+
+change_character_column_to_numeric = Function({col_name, dt = Current Data Table(), sample_rate = 1, change_threshold = 1, allow_int = 0},
+	{Default Local}, 
+/*************************************************************************
+Function: change_character_column_to_numeric
+	---Prototype---
+	change_character_column_to_numeric(string col_name, datatable dt, float sample_rate, float change_threshold, int allow_int)
+	---------------
+	Function to change column to numeric if possible
+
+Returns:
+	Text if column was changed and how (or not)
+
+Prototype:
+	> change_character_column_to_numeric(col_name, <dt = Current Data Table()>, <sample_rate = 0.05>, <change_threshold = 1>, <allow_int = 0>)
+
+Parameters:
+	col_name - Name of the column (string) which will be modified if possible
+	dt - Reference to datatable which will be modified
+	sample_rate - Sample rate used if number of unique values gets larger than 10000
+	change_threshold - Required minimum threshold to change column to character
+	allow_int - 0 or any other number. Will allow changing columns to also continuous
+
+Examples:
+	----------JSL-----------
+	dt = Current Data Table();
+	list_cols = dt << Get Column Names(Character, String);
+	For Each({col_name}, list_cols,
+		res = change_character_column_to_numeric(col_name, dt);
+		Show(res);
+	);
+	------------------------	
+*************************************************************************/
+	Try(
+		dt_summary = dt << Summary(Group(col_name), Freq("None"), Weight("None"), Link to original data table(0), private);
+		missing_rows = dt_summary[1, 1] == ""; //check missing rows checking only row 1 is enough
+		If(missing_rows,
+			dt_summary << Delete Row(missing_rows)
+		);
+		
+		first_last = Any(Is Missing(num_validator(dt_summary[1, 1])), Is Missing(num_validator(dt_summary[N Rows(dt_summary), 1])));
+		If(first_last == 1,
+			Close(dt_summary, no save);
+			Return("Column " || col_name || " wasn't modified after first last test");
+		);
+		//delete first and last row
+		Try(dt_summary << Delete Rows(1));
+		Try(dt_summary << Delete Rows(N Rows(dt_summary)));
+
+		//n rows dt_sampled
+
+		If(N Rows(dt_summary) > 10000, //over 100 unique values
+			dt_sampled = dt_summary << Subset(Sampling Rate(sample_rate), Selected columns only(0), private);
+			Close(dt_summary);
+		,
+			dt_sampled = dt_summary
+		);
+
+		row_nok = 1;
+		is_int = 0;
+		For Each({row_val}, dt_sampled[0, 1],
+			val_as_num = num_validator(row_val);
+			row_nok = Is Missing(val_as_num);
+			If(row_nok,
+				Break(),
+				If(is_int == 0 & allow_int != 0,
+					not_int = Modulo(val_as_num, 1)
+				)
+			);
+		);
+		
+		Close(dt_sampled, no save);
+		If(row_nok == 0,
+			If(not_int == 0,
+				Column(dt, col_name) << Data Type("Numeric");
+				Return("Changed column " || col_name || " to Numeric.");
+			,
+				Column(dt, col_name) << Data Type("Numeric") << Modeling Type("Continuous");
+				Return("Changed column " || col_name || " to Numeric Continuous.");
+			)
+		,
+			Return("Column " || col_name || " wasn't modified after sample test")
+		);
+	,
+		Try(Close(dt_summary, no save));
+		Return(Char(exception_msg));
+	)
+);

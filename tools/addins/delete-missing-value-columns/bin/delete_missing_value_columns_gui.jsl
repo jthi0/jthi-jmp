@@ -1,0 +1,110 @@
+Names Default To Here(1);
+
+//Get utility functions
+Include("bin/gui_utilities.jsl"); 
+Include("bin/delete_missing_value_columns.jsl");
+
+//setup default settings
+default_settings = ["delete_threshold" => 1, 
+	"GUI" => 
+		["use_gui" => 1,
+		"window_title" => "Remove columns with % missing rows", 
+		"window_icon" => "NewApplication",
+		"keep_dialog_open" => 0
+	]
+];
+
+aa_settings = load_settings(default_settings, settings_file_name = "settings.json");
+
+//check if the table is already open
+check_open_window(aa_settings["GUI"]["window_title"]);
+
+//check if any tables are open and set current datatable() as dt
+dt = check_data_tables();
+
+cols_to_analyze = dt << Get Selected Columns(String);
+If(N Items(cols_to_analyze) == 0,
+	cols_to_analyze = dt << Get Column Names(String);
+);
+
+if(aa_settings["GUI"]["use_gui"] != 1,
+	{cols, vals} = delete_cols_with_missing(dt, cols_to_analyze, aa_settings["delete_threshold"]);
+	show(cols, vals);
+, //use gui
+
+	validator = function({clb_items}, {Default Local},
+		error_list = {};
+		If(N Items(clb_items) < 1, 
+			Insert Into(error_list, "No columns selected for analysis");
+		);
+		If(N Items(error_list) > 0,
+			mini_modal_window("Error", Concat Items(error_list, "\!N"), text_icon = "Error", window_icon = "ErrorSmall");
+			return(0);
+		);
+		return(1);
+	);
+	
+	run_expr = Expr(
+		nw_aa = get_nw_values(Current Window());
+		cols_to_analyze = nw_aa["clbs"][1];
+		delete_threshold = nw_aa["nebs"][1];
+		keep_dialog = nw_aa["cbs"][1];
+		validator_value = validator(cols_to_analyze);
+		If(validator_value,
+			If(N Items(cols_to_analyze) > 0,
+				{deleted_cols, vals_missing} = delete_cols_with_missing(dt, cols_to_analyze, delete_threshold);
+				show(deleted_cols, vals_missing);
+			);
+			If(keep_dialog == 0,
+				Current Window() << Close Window;	
+			);
+		);
+	);
+
+	nw = New Window(aa_settings["GUI"]["window_title"], << show toolbars(0), << show menu(0),
+		<<Set Window Icon(aa_settings["GUI"]["window_icon"]),
+		V List Box(align("right"),
+			Border Box(Sides(15), H Center Box(Text Box("Current Data Table(): " || (dt << get name), << Font Color("Blue")))),
+			H List Box(
+				V List Box(
+					Panel Box("Select Columns", flc = Filter Col Selector(dt, nlines(15))),
+					((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+					Panel Box("Options",
+						Lineup Box(N Col(2),
+							Text Box("Max Ratio Missing [0-1]"), neb = Number Edit Box(aa_settings["delete_threshold"], <<Set Minimum(0), << Set Maximum(1)),
+							Text Box("Keep dialog open"), Check Box({""}, <<Set(aa_settings["GUI"]["keep_dialog_open"]))
+						)
+					)
+				),
+				Panel Box("Cast Selected Columns",
+					Lineup Box(N Col(2),
+						Button Box("Add",
+							<< Set Function(function({this},
+								(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+							))
+						),
+						Col List Box(dt, min items(1), nlines(10), << Set Items(cols_to_analyze)),
+						Button Box("Clear Selection",
+							<< Set Function(function({this}, 
+								(((this << parent) << parent) << XPath("//ListBoxBox")) << Clear Selection;
+							))
+						),
+						Button Box("Remove Selected",
+							<< Set Function(function({this}, 
+								(((this << parent) << parent) << XPath("//ListBoxBox")) << Remove Selected;
+							))
+						),
+					)
+				)
+			),
+			H List Box(
+				btn = Button Box("Run",
+					run_expr
+				),
+				Button Box("Close",
+					Current Window() << Close Window;
+				)
+			)
+		)
+	);
+);

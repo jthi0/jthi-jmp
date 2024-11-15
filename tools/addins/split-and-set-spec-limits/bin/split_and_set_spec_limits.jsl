@@ -1,0 +1,89 @@
+﻿Names Default To Here(1);
+
+create_limits_from_col_prop = Function({dt}, {Default Local},
+	col_with_spec = dt << Get Column Names(Continuous, "String");
+	
+	dt_limits = New Table("LIMITS_" || (dt << get name),
+		New Column("Variable", Character, Nominal),
+		New Column("LSL", Numeric, Continuous),
+		New Column("USL", Numeric, Continuous),
+		New Column("Target", Numeric, Continuous),
+		invisible
+	);
+
+	For Each({val}, col_with_spec,
+		colProp = Column(dt, val) << Get Property(Spec Limits);
+		If(!IsEmpty(colProp) > 0,
+			lsl = Try(colProp["LSL"], .);
+			usl = Try(colProp["USL"], .);
+			t = Try(colProp["Target"], .);
+			dt_limits << Add Rows({Variable = val, LSL = lsl, USL = usl, Target = t});
+		);
+	);
+	Return(dt_limits);
+);
+
+split_dt_and_set_limits = function({dt, by_col, value_col, lsl_col, usl_col, group_col = {}, target_col = {}, return_limit_table = 0}, {Default Local},
+	dt_summary_limits = dt << Summary(
+		Output table("LIMITS_" || (dt << get name)),
+		Group(Eval(by_col)),
+		Mean(Eval(lsl_col)),
+		Mean(Eval(usl_col)),
+		Mean(Eval(target_col)),
+		Freq("None"),
+		Weight("None"),
+		statistics column name format("column"),
+		Link to original datatable(0),
+		invisible
+	);
+	//Column(dt_summary_limits, 1) << Set Name("Variable");
+	//combine columns for column property settings
+	col_list = dt_summary_limits << Get Column Names("String");
+	cols_to_variable = col_list[1::Contains(col_list, "N Rows") - 1];
+	dt_summary_limits << New Column("JoinWith", Character, Nominal, << Set Each Value(Concat Items(dt_summary_limits[Row(), cols_to_variable], " ")));
+	
+	//clean rest of columns
+	dt_summary_limits << Delete Columns("N Rows");
+	Try(Column(dt_summary_limits, lsl_col[1]) << Set Name("LSL"));
+	Try(Column(dt_summary_limits, usl_col[1]) << Set Name("USL"));
+	Try(Column(dt_summary_limits, target_col[1]) << Set Name("Target"));
+		
+	dt_split = dt << Split(
+		Output table((dt << get name) || "_with_limits"),
+		Split By(Eval(by_col)),
+		Split(Eval(value_col)),
+		Group(Eval(group_col)),
+		Remaining Columns(Drop(Eval(Concat(lsl_col, usl_col, target_col)))),
+		Sort by Column Property
+	);
+	
+	expr_add_limits = Expr(
+		_lower_limit = If(IsList(_lower_limit) | IsMatrix(_lower_limit), ., _lower_limit);
+		_upper_limit = If(IsList(_upper_limit) | IsMatrix(_upper_limit), ., _upper_limit);
+		_target = If(IsList(_target) | IsMatrix(_target), ., _target);
+		If(!All(IsMissing({_lower_limit,_upper_limit,_target})),
+			Eval(
+				Eval Expr(
+					dataCol << Add Column Properties(
+						Set Property("Spec Limits", {LSL(Expr(_lower_limit)), USL(Expr(_upper_limit)), Target(Expr(_target)), Show Limits(1)})
+					)
+				)
+			)	
+		);
+	);
+	For Each({val, idx}, Column(dt_summary_limits, "JoinWith") << get as matrix,
+		dataCol = Column(dt_split, val);
+		_lower_limit = dt_summary_limits[idx, "LSL"];
+		_upper_limit = dt_summary_limits[idx, "USL"];
+		_target = dt_summary_limits[idx, "Target"];
+		expr_add_limits;
+	);
+	If(return_limit_table == 0,
+		Close(dt_summary_limits, no save);
+		return(Eval List({dt_split, .}));
+	,
+		dt_summary_limits << Show Window(1);
+		return(Eval List({dt_split, dt_summary_limits}));
+	);
+);
+Write();

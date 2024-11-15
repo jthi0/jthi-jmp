@@ -1,0 +1,10 @@
+{
+	"GUI":{
+		"use_gui":1,
+		"window_title": "Group Listagg Columns",
+		"window_icon": "Summary",
+		"keep_dialog_open": 0
+	},
+	"set_multiple_response": 1,
+	"column_suffix": "_LISTAGG"
+}

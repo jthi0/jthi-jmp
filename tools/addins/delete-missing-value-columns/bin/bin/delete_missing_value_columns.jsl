@@ -1,0 +1,43 @@
+Names Default To Here(1);
+
+delete_cols_with_missing = function({dt, list_col_names, delete_threshold = 1}, {Default Local},
+/*************************************************************************
+Function: change_character_column_to_numeric
+	---Prototype---
+	delete_cols_with_missing(datatable dt, list(str) list_col_names, float delete_threshold)
+	---------------
+	Function to delete column if it has more than delete_threshold of missing values. Calculation is based on
+	Col Number and N Rows() division.
+
+Returns:
+	Two lists, first list containing deleted columns and second list with the amount of missing values. Both lists have same order
+
+Prototype:
+	> delete_cols_with_missing(dt, list_col_names, <delete_threshold = 0.9>)
+
+Parameters:
+	dt - Reference to datatable which will be modified
+	list_col_names - List of strings of column names to check for missing values
+	delete_threshold - Minimum threshold at which point column will be deleted
+
+Examples:
+	----------JSL-----------
+	dt = Current Data Table();
+	list_cols = dt << Get Column Names(Character, String);
+	{cols, vals} = delete_cols_with_missing(dt, list_cols, 0.9);
+	------------------------	
+*************************************************************************/
+	cols_deleted = {};
+	missing_vals = [];
+	n_rows = N Rows(dt);
+	delete_threshold = Min(Max(0, delete_threshold), 1);
+	For Each({val}, list_col_names,
+		vals_missing = 1 - Col Number(Column(dt, val)) / n_rows;
+		If(vals_missing >= delete_threshold,
+			dt << Delete Column(val);
+			Insert Into(cols_deleted, val);
+			Insert Into(missing_vals, vals_missing);
+		);
+	);
+	return(Eval List({cols_deleted, missing_vals}));
+);

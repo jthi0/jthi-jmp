@@ -1,0 +1,11 @@
+{
+	"GUI":{
+		"use_gui":1,
+		"window_title": "Change Character Columns to Numeric",
+		"window_icon": "NewApplication",
+		"keep_dialog_open": 0
+	},
+	"sample_rate": 1,
+	"change_threshold": 1,
+	"allow_int": 1
+}

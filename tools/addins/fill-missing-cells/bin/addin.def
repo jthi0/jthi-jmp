@@ -1,0 +1,5 @@
+id=jthi.jmp.tools.fill.missing.cells
+name=JMP-Tools Fill Missing Cells
+supportJmpSE=0
+addinVersion=1
+minJmpVersion=16

@@ -1,0 +1,9 @@
+{
+	"GUI":{
+		"use_gui":1,
+		"window_title": "Remove columns with % missing rows", 
+		"window_icon": "NewApplication",
+		"keep_dialog_open": 0
+	},
+	"delete_threshold": 1
+}

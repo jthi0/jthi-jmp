@@ -1,0 +1,44 @@
+﻿Names Default To Here(1);
+//progress bar with max 100 updates
+
+create_progress_bar = function({max_iteration, title = "Progress Bar", progress_bar_width = 500}, {Default Local},
+	iter_width = progress_bar_width / max_iteration;
+	nw = New Window(title, <<Show Menu(0), <<Show Toolbars(0), <<Set Window Icon("DebuggerProfilerCollectionByTime"),
+		window:max_iteration = max_iteration;
+		window:progress_bar_width = progress_bar_width;
+		window:iter_width = iter_width;
+		window:nth_iter = Max(1, max_iteration / 100);
+		V List Box(align("center"),
+			window:iter_text= Text Box("", <<setwrap(progress_bar_width)),
+			H List Box(
+				window:stat_text = Text Box("Iteration 0"),
+				Text Box(" of " || char(max_iteration))
+			),
+			H List Box(
+				window:left = Spacer Box(size(0, progress_bar_height), color("Light Green")),
+				window:right = Spacer Box(size(progress_bar_width, 20), color("Dark Green")),
+				<<padding(3, 3, 3, 3),
+				<<backgroundcolor("dark gray")
+			),
+			window:done_text = Text Box("0%", << set wrap(progress_bar_width)),
+			window:cancel_btn = Button Box("Cancel", << style("Toggle"))
+		)
+	);
+	return(nw);
+);
+
+update_progress_bar = function({pb, current_iteration, text_iteration = ""}, {Default Local},
+	If(Modulo(current_iteration, pb:nth_iter) == 0,
+		cancel_status = pb:cancel_btn << get;
+		If(cancel_status, //if cancel has been pressed, we can return immediately
+			return(cancel_status);
+		);
+		new_width = Min(current_iteration * pb:iter_width, pb:progress_bar_width); //check so we don't go over max width
+		pb:left << width(new_width);
+		pb:right << width(pb:progress_bar_width - new_width);
+		pb:stat_text << Set Text(Eval Insert("Iteration ^current_iteration^"));
+		pb:iter_text << Set Text(text_iteration);
+		pb:done_text << Set Text(char(Round(Min(current_iteration / pb:max_iteration, 1)*100, 2)) ||"%");
+	);
+	return(0); 
+);

@@ -1,0 +1,5 @@
+id=jthi.jmp.tools.character.columns.to.numeric
+name=JMP-Tools Character Columns to Numeric
+supportJmpSE=0
+addinVersion=1
+minJmpVersion=16

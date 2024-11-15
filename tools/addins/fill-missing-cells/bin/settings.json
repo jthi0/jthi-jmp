@@ -1,0 +1,13 @@
+{
+	"GUI":{
+		"use_gui":1,
+		"window_title": "Fill Missing Cells",
+		"window_icon": "DebuggerStepInto",
+		"keep_dialog_open": 0
+	},
+	"data_sorted": 1,
+	"default_fill": "backward",
+	"default_unknown": 1,
+	"default_new_column": 1,
+	"default_max_distance": .
+}

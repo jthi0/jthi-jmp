@@ -1,0 +1,143 @@
+Names Default To Here(1);
+
+//Get utility functions
+Include("bin/gui_utilities.jsl"); //or copy them directly here to make more standalone
+Include("bin/character_columns_to_numeric.jsl");
+Include("bin/progress_bar_function.jsl");
+
+//setup default settings
+default_settings = ["allow_int" => 1, "change_threshold" => 1, "sample_rate" => 1,
+	"GUI" => ["use_gui" => 1, "window_title" => "Change Character Columns to Numeric", "window_icon" => "NewApplication",
+	"keep_dialog_open" => 0]
+];
+aa_settings = load_settings(default_settings, settings_file_name = "settings.json");
+
+
+//check if the table is already open
+check_open_window(aa_settings["GUI"]["window_title"]);
+
+//check if any tables are open and set current datatable() as dt
+dt = check_data_tables();
+
+all_char_cols = dt << Get Column Names(Character, String);
+if(N Items(all_char_cols) == 0,
+	Throw("No Character Columns in datatable " || (dt << get name));
+);
+init_selected_cols = dt << Get Selected Columns("String"); //check if any are character...
+If(N Items(init_selected_cols) == 0,
+	init_cols = all_char_cols,
+	//remove non-character columns
+	all_num_cols = dt << Get Column Names(Numeric, String);
+	aa_numeric = Associative Array(all_num_cols);
+	aa_selected = Associative Array(init_selected_cols);
+	aa_selected << Remove(aa_numeric);
+	init_cols = aa_selected << get keys;
+);
+
+run_script = Expr(
+	pb = create_progress_bar(N Items(list_cols), "Progress... Character to Numeric");
+	wait(0);
+	For Each({col_name, idx}, list_cols,
+		res = change_character_column_to_numeric(col_name, dt, aa_settings["sample_rate"], aa_settings["change_threshold"], aa_settings["allow_int"]);
+		If(Starts With(res, "Changed column"),
+			Show(res);
+		);
+		cancel_status = update_progress_bar(pb, idx, col_name);
+		wait(0);
+		if(cancel_status == 1,
+			show("Cancel button pressed");
+			break();
+		);
+	);
+	pb << close window;
+	Write();
+);
+
+if(aa_settings["GUI"]["use_gui"] == 1,
+	//modify validator function if needed
+	validator = function({clb_items}, {Default Local},
+		error_list = {};
+		If(N Items(clb_items) < 1, 
+			Insert Into(error_list, "No columns selected for analysis");
+		);
+		If(N Items(error_list) > 0,
+			mini_modal_window("Error", Concat Items(error_list, "\!N"), text_icon = "Error", window_icon = "ErrorSmall");
+			return(0);
+		);
+		return(1);
+	);
+
+	//modify run_expr which is executed when run button is pressed
+	run_expr = Expr(
+		nw_aa = get_nw_values(Current Window());
+		list_cols = nw_aa["clbs"][1];
+		aa_settings["sample_rate"] = nw_aa["nebs"][1];
+		aa_settings["change_threshold"] = min(1, nw_aa["nebs"][2]);
+		aa_settings["allow_int"] = nw_aa["cbs"][1];
+		keep_dialog = nw_aa["cbs"][2];
+	//	stop();
+		validator_value = validator(list_cols);	
+		If(validator_value,
+			If(keep_dialog == 0,
+				Current Window() << Close Window;
+			);
+			run_script;
+		);
+	);
+	
+	nw = New Window(aa_settings["GUI"]["window_title"], << show toolbars(0), << show menu(0),
+		<<Set Window Icon(aa_settings["GUI"]["window_icon"]),
+		V List Box(align("right"),
+			Border Box(Sides(15), H Center Box(Text Box("Current Data Table(): " || (dt << get name), << Font Color("Blue")))),
+			H List Box(
+				V List Box(
+					Panel Box("Select Character Columns", flc = Filter Col Selector(dt, nlines(10), << Numeric(0), << Expression(0))),
+					((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+					Panel Box("Options",
+						Lineup Box(N Col(2),
+							Text Box("Change threshold"),
+							Number Edit Box(aa_settings["change_threshold"]),
+							Text Box("Sample rate"),
+							Number Edit Box(aa_settings["sample_rate"]),
+							Text Box("Continuous Transform"),
+							Check Box({""}, << Set(aa_settings["allow_int"])),
+							Text Box("Keep dialog open"),
+							Check Box({""}, << Set(aa_settings["GUI"]["keep_dialog_open"]))
+						)
+					)
+				),
+				Panel Box("Cast Selected Columns",
+					Lineup Box(N Col(2),
+						Button Box("Add",
+							<< Set Function(function({this},
+								(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+							))
+						),
+						Col List Box(dt, min items(1), nlines(10), << Set Data Type("Character"), << Set Items(init_cols)),
+						Button Box("Clear Selection",
+							<< Set Function(function({this}, 
+								(((this << parent) << parent) << XPath("//ListBoxBox")) << Clear Selection;
+							))
+						),
+						Button Box("Remove Selected",
+							<< Set Function(function({this}, 
+								(((this << parent) << parent) << XPath("//ListBoxBox")) << Remove Selected;
+							))
+						),
+					)
+				)
+			),
+			H List Box(
+				btn = Button Box("Run",
+					run_expr
+				),
+				Button Box("Close",
+					Current Window() << Close Window;
+				)
+			)
+		)
+	),
+	list_cols = init_cols;
+	run_script;
+);
+Write();

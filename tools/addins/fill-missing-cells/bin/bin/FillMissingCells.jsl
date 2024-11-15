@@ -1,0 +1,103 @@
+﻿Names Default To Here(1);
+
+Include("GetNearestIndexDistance.jsl");
+
+Define Class("FillMissingCells", BaseClass(GetNearestIndexDistance),
+	_init_ = Method({}, );
+		//supporting functions
+	find_missing_for_m = Method({values_m}, 
+	/*************************************************************************
+		Function: find_missing_for_m
+			Function to find values and missing values in matrix
+
+		Returns:
+			Associative array with "found" and "missing" keys which correspond to indices in values_m with values and missing values
+	*************************************************************************/
+		found_index_m = Loc Nonmissing(values_m);//matrix of indices for found values
+		//use Matrix() to avoid issues with Lists
+		missing_index_m = Loc(Matrix(Is Missing(values_m))); //matrix of indices for missing values
+		aa = Associative Array({"found", "missing"}, Eval List({found_index_m, missing_index_m}));
+		Return(aa);
+	);
+	
+	create_grouping_column = Method({dt, group_col_list}, 
+	/*************************************************************************
+		Function: create_grouping_column
+			Creates grouping column to datatable based on list provided
+
+		Returns:
+			Reference to new column
+			
+		//could possibly be improved with something like: https://community.jmp.com/t5/Discussions/Using-list-of-columns-in-formulas/td-p/405133
+	*************************************************************************/
+		formulaExpr = Expr(Col Min(Row()));
+		For Each({value}, group_col_list, Insert Into(formulaExpr, Column(value)));
+		groupCol = dt << New Column("TEMPGROUPFORFILL", Numeric, Ordinal, <<Set Each Value(Eval(Eval Expr(formulaExpr))));
+		Return(groupCol);
+	);
+	
+	fill_missing_cells = Method({dt, column_to_fill = "", order_column_name = "", group_columns = {}, direction = "backward", lookup_sorted = -1, max_distance = .,	fill_unknown = 1},
+		new_col = Empty();
+		If(Is Missing("") | (Type(group_columns) == "List" & N Items(Is Missing(group_columns)) == 0),
+			indice_list = [0],
+			If(Type(group_columns) == "String" | N Items(group_columns) == 1, 
+				//no need for grouping column, but we still need to get unique values.
+				grouping_column = If(Type(group_columns) == "List",
+					group_columns[1],
+					group_columns
+				)
+			,
+				new_col = create_grouping_column(dt, group_columns)
+			);
+			Summarize(dt, uniq_groups = by(Column(grouping_column)));
+			indice_list = Transform Each({value}, uniq_groups, Loc(dt[0, grouping_column], value));
+		);
+		For Each({indices}, indice_list,
+			aa = find_missing_for_m(dt[indices, column_to_fill]);
+			If(indices == 0,
+				lookup_idx = aa["found"];
+				input_idx = aa["missing"];
+			,
+				lookup_idx = indices[aa["found"]];
+				input_idx = indices[aa["missing"]];
+			);
+			If(N Items(order_column_name) > 0,
+				order_column_name = order_column_name[1];
+			,
+				order_column_name = "";
+			);
+			If(order_column_name == "",
+				vec_lookup = lookup_idx; //use row indices
+				vec_input = input_idx;
+			, //
+				vec_lookup = dt[lookup_idx, order_column_name];
+				vec_input = dt[input_idx, order_column_name];
+			);
+			If(N Items(vec_input) == 0, //if there are no missing values, there is nothing to fill
+				continue();
+			);
+			If(direction == "interpolate", //handle interpolate separately
+				dt[input_idx, column_to_fill] = Interpolate(vec_input, Sort Ascending(vec_lookup), Sort Ascending(dt[lookup_idx,column_to_fill]));
+				continue();
+			);
+			//find indices using GNIDA
+			{rows, dist} = get_nearest_index_distance(vec_lookup, vec_input, direction, lookup_sorted, max_distance);
+			If(fill_unknown == 0 & (Contains(direction, "backward") | Contains(direction, "forward")), //if we don't want to fill unknown, remove them
+				If(
+					Contains(direction, "backward"), unknown_idx = As List(Loc(input_idx < Min(lookup_idx))),
+					Contains(direction, "forward"), unknown_idx = As List(Loc(input_idx > Max(lookup_idx)))
+				);
+				If(N Items(unknown_idx) > 0,
+					Remove From(rows, unknown_idx);
+					Remove From(input_idx, unknown_idx);
+				);
+			);
+			dt[input_idx, column_to_fill] = dt[lookup_idx[rows], column_to_fill];
+		);
+		If(!Is Empty(new_col),
+			dt << Delete Columns(new_col)
+		);
+	);
+);
+
+New Object(FillMissingCells());

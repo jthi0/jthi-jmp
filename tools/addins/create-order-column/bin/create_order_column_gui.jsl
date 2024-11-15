@@ -1,0 +1,16 @@
+Names Default To Here(1);
+
+If(N Items(Get Data Table List()) < 1,
+	Throw("No datatables open");
+);
+
+Include("bin/create_order_column.jsl");
+
+default_settings = ["hide_column" => 1,"exclude_column" => 1, "order_col_name" => "_OrigOrder_"];
+If(File Exists("settings.json"),
+	aa_settings = Load Text File("settings.json", JSON);
+	aa_settings = default_settings;
+);
+
+create_ordering_column(dt = Current Data Table(), aa_settings["hide_column"], aa_settings["exclude_column"], aa_settings["order_col_name"]);
+Write();

@@ -1,0 +1,190 @@
+Names Default To Here(1);
+
+//Get utility functions
+Include("bin/gui_utilities.jsl"); //or copy them directly here to make more standalone
+Include("bin/split_and_set_spec_limits.jsl");
+
+//setup default settings
+default_settings = [
+	"default_grouping_columns" => {}, 
+	"default_lsl_columns" => {"MIN", "LSL", "LOWER", "LOWER_LIMIT"},
+	"default_split_by_columns" => {"Variable", "Process", "Label"}, 
+	"default_target_columns" => {"Target"},
+	"default_usl_columns" => {"MAX", "USL", "UPPER", "UPPER_LIMIT"},
+	"default_value_columns" => {"Result", "Data", "Value"}, 
+"show_as_graph_ref_lines" => 1,
+"return_limits_table" => 0,
+"GUI" => 
+	["keep_dialog_open" => 0, "window_icon" => "WinSaveScriptToDataTable", 
+	"window_title" => "Split and Set Specification Limits"
+	]
+];
+ 
+//load settings from file and get "final settings"
+aa_settings = load_settings(default_settings, settings_file_name = "settings.json");
+
+//check if the table is already open
+check_open_window(aa_settings["GUI"]["window_title"]);
+
+//check if any tables are open and set current datatable() as dt
+dt = check_data_tables();
+
+//modify validator function if needed
+validator = function({col_split, col_value}, {Default Local},
+	error_list = {};
+	If(N Items(col_split) == 0,
+		Insert Into(error_list, "No columns to split by selected.");
+	);
+	If(N Items(col_value) == 0,
+		Insert Into(error_list, "No value columns selected.");
+	);
+	If(N Items(error_list) > 0,
+		mini_modal_window("Error", Concat Items(error_list, "\!N"), text_icon = "Error", window_icon = "ErrorSmall");
+		return(0);
+	);
+	return(1);
+);
+
+//modify run_expr which is executed when run button is pressed
+run_expr = Expr(
+	cur_nw = Current Window();
+	nw_aa = get_nw_values(cur_nw);
+	keep_dialog = nw_aa["cbs"][1];
+	set_limits_to_graph = nw_aa["cbs"][2];
+	return_limits_table = nw_aa["cbs"][3];
+	
+	col_split = nw_aa["clbs"][1];
+	col_value = nw_aa["clbs"][2];
+	col_group = nw_aa["clbs"][3];
+	col_lsl = nw_aa["clbs"][4];
+	col_usl = nw_aa["clbs"][5];
+	col_target = nw_aa["clbs"][6];
+
+	col_xaxis = nw_aa["clbs"][7];
+
+	
+	If(validator(col_split, col_value),
+		{dt_split, dt_limits} = split_dt_and_set_limits(dt, col_split, col_value, col_lsl, col_usl, col_group, col_target, 1);
+		If(keep_dialog == 0,
+			cur_nw << Close Window;
+		);
+		If(N Items(col_xaxis) > 0,
+			col_listing_str = dt_limits[0, 1];
+			
+			col_listing = Transform Each({val}, col_listing_str,
+				Name Expr(AsColumn(dt_split, val))
+			);
+			wait(0);
+			Try(Eval(EvalExpr(gb = dt_split << Graph Builder(
+				Size(1400, 900),
+				Show Control Panel(1),
+				Variables(X(Expr(NameExpr(AsColumn(dt_split, col_xaxis[1])))), Y(Expr(col_listing[1]))),
+				Elements(Points(X, Y, Legend(5))),
+				Column Switcher(Expr(col_listing[1]), Expr(col_listing))
+			))), show(exception_msg));
+		);
+		If(return_limits_table == 0,
+			Try(Close(dt_limits, no save));
+		);
+	);
+);
+
+nw = New Window(aa_settings["GUI"]["window_title"], << show toolbars(0), << show menu(0),
+	<<Set Window Icon(aa_settings["GUI"]["window_icon"]),
+	V List Box(align("right"),
+		Border Box(Sides(15), H Center Box(H List Box(
+			Text Box("Current Data Table(): ", << Font Color("Blue")),
+			MouseBox(tb_dt = Text Box((Current Data Table() << get name),<< Font Color("Blue"), << Set Font Style("Bold")),
+				<<setTooltip("Click to bring datatable to front"),
+				<<setClickEnable(1),
+				<<SetClick(
+					function({this, clickpt, event},
+						If(event == "Released",
+							Datatable(tb_dt << get text) << Bring Window To Front();
+						)
+					)
+				)
+			)
+		))),
+		H List Box(
+			V List Box(
+				Panel Box("Select Columns", flc = Filter Col Selector(dt, nlines(10))),
+				((flc << Parent) << Xpath("//IfBox")) << set(1), //enable filtering to filter col selector...
+				Panel Box("Options",
+					Lineup Box(N Col(2),
+						Text Box("Keep dialog open"), Check Box({""}, << Set(aa_settings["GUI"]["keep_dialog_open"])),
+						Text Box("Set limits to Graph"), Check Box({""}, <<Set(aa_settings["show_as_graph_ref_lines"])),
+						Text Box("Return limits table"), Check Box({""}, <<Set(aa_settings["return_limits_table"])),
+					)
+				)
+			),
+			Panel Box("Cast Selected Columns",
+				Lineup Box(N Col(2),
+					Button Box("Split By",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), nlines(4)),
+					Button Box("Value",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, min items(1), max items(1), << Modeling Type({"Continuous"}), nlines(1)),
+						Button Box("Grouping",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, << Modeling Type({"Ordinal", "Nominal"}),nlines(3)),
+					Button Box("LSL",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, max items(1), << Modeling Type({"Continuous"}), nlines(1)),
+					Button Box("USL",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, max items(1), << Modeling Type({"Continuous"}), nlines(1)),
+					Button Box("Target",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, max items(1), << Modeling Type({"Continuous"}), nlines(1)),
+					Unlineup Box(Spacer Box(Size(0,2), Color("Gray"))),
+					Button Box("X-Axis",
+						<< Set Function(function({this},
+							(this << sib) << Append(((this << top parent) << XPath("//FilterColSelectorBox"))[1] << get selected)
+						))
+					),
+					Col List Box(dt, max items(1), nlines(1)),
+					Unlineup Box(Spacer Box(Size(0,2), Color("Gray"))),
+					Button Box("Clear Selection",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Clear Selection;
+						))
+					),
+					Button Box("Remove Selected",
+						<< Set Function(function({this}, 
+							(((this << parent) << parent) << XPath("//ListBoxBox")) << Remove Selected;
+						))
+					),
+				)
+			)
+		),
+		H List Box(
+			Button Box("Run",
+				run_expr;
+			),
+			Button Box("Close",
+				Current Window() << Close Window;
+			)
+		)
+	)
+);
+Write();
