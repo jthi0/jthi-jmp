@@ -1,0 +1,80 @@
+/*""" Disable the extremely annoying Expiration Warning JMP18 has
+
+Author: jthi
+Creation Date: 2024-11-16
+Creation JMP Version: JMP Pro 18.2
+
+Description: Disable the window until 10 days are left. After that
+show it only once per day
+	
+"""*/
+
+Names Default To Here(1);
+Clear Log();
+
+Try(Window("Expiration Warning") << Close Window);
+
+Include("../src/disable_expiration_warning.jsl");
+If(!File Exists("../src/disable_expiration_warning.jsl"),
+	Throw("last_run.txt was not created");
+);
+
+
+// Test days over 10 and log print
+wait(0);
+test_str = "expire in 11 days.";
+Try(Delete File("../src/last_run.txt"));
+nw = New Window("Expiration Warning",
+	Text Box(test_str);
+);
+lc = Log Capture(Include("../src/disable_expiration_warning.jsl"));
+If(!Is Empty(nw),
+	Throw("Failed to close window when there is more than 10 days left");
+);
+If(lc != test_str,
+	Throw("Incorrect message printed to log");
+);
+If(days_left != 11,
+	Throw("Incorrect days left");
+);
+
+// Test 10 days
+wait(0);
+Try(Delete File("../src/last_run.txt"));
+nw = New Window("Expiration Warning",
+	Text Box("expire in 10 days.");
+);
+Include("../src/disable_expiration_warning.jsl");
+If(Is Empty(nw),
+	Throw("Did close window when 10 days were left");
+);
+Try(Window("Expiration Warning") << Close Window);
+
+
+// Test less than 10 days
+wait(0);
+Try(Delete File("../src/last_run.txt"));
+nw = New Window("Expiration Warning",
+	Text Box("expire in 9 days.");
+);
+Include("../src/disable_expiration_warning.jsl");
+If(Is Empty(nw),
+	Throw("Did close window when less than 10 days were left");
+);
+Try(Window("Expiration Warning") << Close Window);
+
+
+// Test last_run.txt
+wait(0);
+now_date = Today() - Time Of Day(Today());
+Save Text File(addin_dir||"\last_run.txt", char(now_date), mode("replace"));
+
+nw = New Window("Expiration Warning",
+	Text Box("expire in 9 days.");
+);
+Include("../src/disable_expiration_warning.jsl");
+If(!Is Empty(nw),
+	Throw("Didn't close window even if it has been already run.");
+);
+
+Write();

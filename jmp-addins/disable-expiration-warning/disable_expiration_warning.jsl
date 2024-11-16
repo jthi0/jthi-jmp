@@ -1,0 +1,34 @@
+/*""" Disable the extremely annoying Expiration Warning JMP18 has
+
+Author: jthi
+Creation Date: 2024-11-16
+Creation JMP Version: JMP Pro 18.2
+
+Description: Disable the window until 10 days are left. After that
+show it only once per day
+	
+"""*/
+
+Names Default To Here(1);
+
+Try(
+	txt = Window("Expiration Warning")[TextBox(1)] << get text;
+	Write(txt); // print to log
+	
+	days_left = Num(Regex(txt, "expire in (\d+) days\.", "\1"));
+	
+	now_date = Today() - Time Of Day(Today());
+	last_run = Try(Parse(Load Text File("$ADDIN_HOME(jthi.disable.expiration.warning)\last_run.txt")),
+		Date DMY(1, 1, 3000);
+	);
+	
+	If(days_left <= 10 & last_run <= now_date,
+		// Display
+	,
+		Window("Expiration Warning") << Close Window;
+	);
+	
+	Save Text File("$ADDIN_HOME(jthi.disable.expiration.warning)\last_run.txt", char(now_date), mode("replace"));
+);
+
+Write();
